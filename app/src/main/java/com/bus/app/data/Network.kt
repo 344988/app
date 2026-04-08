@@ -1,6 +1,6 @@
 package com.bus.app.data
 
-import com.bus.app.BuildConfig
+import com.bus.app.config.AppConfig
 import com.google.gson.annotations.SerializedName
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -95,7 +95,7 @@ interface BusApi {
 }
 
 object ApiClient {
-    private const val LOGGING_ENABLED = BuildConfig.HTTP_LOGGING_ENABLED
+    private const val LOGGING_ENABLED = AppConfig.HTTP_LOGGING_ENABLED
 
     private val logging = HttpLoggingInterceptor().apply {
         level = if (LOGGING_ENABLED) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.NONE
@@ -114,7 +114,7 @@ object ApiClient {
 
     val api: BusApi by lazy {
         Retrofit.Builder()
-            .baseUrl(BuildConfig.BASE_URL)
+            .baseUrl(AppConfig.BASE_URL)
             .addConverterFactory(GsonConverterFactory.create())
             .client(okHttpClient)
             .build()
