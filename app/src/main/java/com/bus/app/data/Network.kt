@@ -1,6 +1,6 @@
 package com.bus.app.data
 
-import com.bus.app.BuildConfig
+import com.bus.app.config.BuildConfig
 import com.google.gson.annotations.SerializedName
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
