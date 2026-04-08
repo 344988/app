@@ -68,6 +68,9 @@ data class UserCreateRequest(
 
 // --- API ИНТЕРФЕЙС ---
 interface BusApi {
+    @GET("/health")
+    suspend fun health(): Response<Map<String, Any>>
+
     @FormUrlEncoded
     @POST("/auth/login")
     suspend fun login(@Field("username") user: String, @Field("password") pass: String): Response<LoginResponse>
@@ -103,6 +106,8 @@ object ApiClient {
     
     val okHttpClient = OkHttpClient.Builder()
         .apply {
+            addInterceptor(AuthInterceptor())
+            addInterceptor(UnauthorizedInterceptor())
             if (LOGGING_ENABLED) {
                 addInterceptor(logging)
             }

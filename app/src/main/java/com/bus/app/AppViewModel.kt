@@ -1,6 +1,8 @@
 package com.bus.app
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.bus.app.data.ActiveBus
 import com.bus.app.data.Company
 import com.bus.app.data.LocationUpdate
@@ -9,13 +11,16 @@ import com.bus.app.data.UserCreateRequest
 import com.bus.app.data.UserDto
 import com.bus.app.data.repository.ApiBusRepository
 import com.bus.app.data.repository.BusRepository
+import com.bus.app.data.session.SessionDataStore
+import com.bus.app.data.session.SessionRuntime
 import com.bus.app.domain.usecase.LoginUseCase
 import com.bus.app.domain.usecase.SyncActiveRoutesUseCase
-import org.osmdroid.util.GeoPoint
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import org.osmdroid.util.GeoPoint
 
 data class AppUiState(
     val token: String? = null,
@@ -29,16 +34,36 @@ data class AppUiState(
     val endPoint: GeoPoint? = null,
     val routePoints: List<GeoPoint> = emptyList(),
     val travelTimeInfo: String = "Расчет...",
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val apiHealthy: Boolean? = null
 )
 
 class AppViewModel(
+    application: Application,
     private val repository: BusRepository = ApiBusRepository()
-) : ViewModel() {
+) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(AppUiState())
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
     private val loginUseCase = LoginUseCase(repository)
     private val syncActiveRoutesUseCase = SyncActiveRoutesUseCase(repository)
+    private val sessionDataStore = SessionDataStore(application.applicationContext)
+
+    init {
+        viewModelScope.launch {
+            sessionDataStore.sessionFlow.collect { session ->
+                SessionRuntime.token = session.token
+                if (!session.token.isNullOrBlank()) {
+                    _uiState.update {
+                        it.copy(
+                            token = session.token,
+                            userRole = session.role ?: "unknown",
+                            userLogin = session.login ?: ""
+                        )
+                    }
+                }
+            }
+        }
+    }
 
     fun setAuthenticatedUser(
         token: String,
@@ -59,6 +84,8 @@ class AppViewModel(
     }
 
     fun logout() {
+        SessionRuntime.token = null
+        viewModelScope.launch { sessionDataStore.clearSession() }
         _uiState.update { AppUiState() }
     }
 
@@ -100,6 +127,15 @@ class AppViewModel(
             companyId = response.companyId,
             companyName = response.companyName
         )
+        SessionRuntime.token = response.accessToken
+        viewModelScope.launch {
+            sessionDataStore.saveSession(
+                token = response.accessToken,
+                role = response.role,
+                userId = null,
+                login = response.login
+            )
+        }
         return true
     }
 
@@ -107,6 +143,7 @@ class AppViewModel(
         try {
             val state = _uiState.value
             val token = state.token ?: return
+            _uiState.update { it.copy(apiHealthy = repository.getHealth()) }
             val location = state.userLocation?.let { LocationUpdate(it.latitude, it.longitude) }
             val buses = syncActiveRoutesUseCase(
                 token = "Bearer $token",

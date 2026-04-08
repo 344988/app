@@ -59,6 +59,7 @@ private class FakeSyncRepository(
 ) : BusRepository {
     var updateLocationCalled: Boolean = false
 
+    override suspend fun getHealth() = true
     override suspend fun login(username: String, password: String): LoginResponse? = null
     override suspend fun getActiveRoutes(token: String): List<ActiveBus> = routes
     override suspend fun updateLocation(token: String, location: LocationUpdate): Boolean {

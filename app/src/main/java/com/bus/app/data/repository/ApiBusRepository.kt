@@ -12,6 +12,11 @@ import com.bus.app.data.UserDto
 import kotlinx.coroutines.delay
 
 class ApiBusRepository : BusRepository {
+    override suspend fun getHealth(): Boolean {
+        val response = retryWithBackoff { ApiClient.api.health() }
+        return response.isSuccessful
+    }
+
     override suspend fun login(username: String, password: String): LoginResponse? {
         val response = retryWithBackoff { ApiClient.api.login(username, password) }
         return if (response.isSuccessful) response.body() else null

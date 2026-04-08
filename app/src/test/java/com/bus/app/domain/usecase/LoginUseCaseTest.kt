@@ -41,6 +41,7 @@ class LoginUseCaseTest {
 private class FakeBusRepository(
     private val loginResponse: LoginResponse?
 ) : BusRepository {
+    override suspend fun getHealth() = true
     override suspend fun login(username: String, password: String): LoginResponse? = loginResponse
     override suspend fun getActiveRoutes(token: String) = emptyList<com.bus.app.data.ActiveBus>()
     override suspend fun updateLocation(token: String, location: LocationUpdate) = true

@@ -44,9 +44,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.bus.app.data.*
+import com.bus.app.data.session.SessionRuntime
 import com.bus.app.ui.theme.СлужебныйАвтобусTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Request
@@ -87,13 +89,18 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        SessionRuntime.onUnauthorized = {
+            runOnUiThread {
+                appViewModel.logout()
+                Toast.makeText(this, "Сессия завершена (401). Войдите снова.", Toast.LENGTH_SHORT).show()
+            }
+        }
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         Configuration.getInstance().userAgentValue = packageName
         enableEdgeToEdge()
         setContent {
             СлужебныйАвтобусTheme {
                 val navController = rememberNavController()
-                val scope = rememberCoroutineScope()
                 val uiState by appViewModel.uiState.collectAsState()
 
                 LaunchedEffect(uiState.errorMessage) {
@@ -105,16 +112,15 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(uiState.token) {
                     if (uiState.token != null) {
-                        while(true) {
-                            scope.launch {
-                                appViewModel.refreshActiveRoutes()
-                            }
+                        while(isActive) {
+                            appViewModel.refreshActiveRoutes()
                             delay(5000)
                         }
                     }
                 }
 
-                NavHost(navController = navController, startDestination = "auth") {
+                val startDestination = if (uiState.token.isNullOrBlank()) "auth" else "main_map"
+                NavHost(navController = navController, startDestination = startDestination) {
                     composable("auth") { AuthScreen(navController, appViewModel) }
                     composable("main_map") { MainMapScreen(navController, appViewModel) }
                     composable("driver_setup") { DriverSetupScreen(navController, appViewModel) }
@@ -133,6 +139,11 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         stopLocationUpdates()
+    }
+
+    override fun onDestroy() {
+        SessionRuntime.onUnauthorized = null
+        super.onDestroy()
     }
 
     private fun ensureLocationPermissionAndStartUpdates() {
@@ -253,6 +264,15 @@ fun MainMapScreen(navController: NavController, appViewModel: AppViewModel) {
             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(0.5f)).clickable { showMenu = false }) {
                 Column(modifier = Modifier.width(260.dp).fillMaxSize().background(Color(0xFF050816)).padding(24.dp).clickable(enabled=false){}) {
                     Text("Меню (${uiState.userRole})", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = when (uiState.apiHealthy) {
+                            true -> "API: online"
+                            false -> "API: offline"
+                            null -> "API: проверка..."
+                        },
+                        color = if (uiState.apiHealthy == true) Color(0xFF5BFF7A) else Color(0xFFFFA0A0),
+                        fontSize = 12.sp
+                    )
                     Spacer(modifier = Modifier.height(24.dp))
                     if (uiState.userRole == "admin") MenuButton("Админ-панель", Icons.Default.Settings) { navController.navigate("admin_panel"); showMenu = false }
                     if (uiState.userRole == "driver" || uiState.userRole == "admin") MenuButton("Настроить рейс", Icons.Default.Add) { navController.navigate("driver_setup"); showMenu = false }

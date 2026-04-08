@@ -10,6 +10,7 @@ import com.bus.app.data.UserCreateRequest
 import com.bus.app.data.UserDto
 
 interface BusRepository {
+    suspend fun getHealth(): Boolean
     suspend fun login(username: String, password: String): LoginResponse?
     suspend fun getActiveRoutes(token: String): List<ActiveBus>?
     suspend fun updateLocation(token: String, location: LocationUpdate): Boolean
