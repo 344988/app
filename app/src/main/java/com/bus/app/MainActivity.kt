@@ -1,11 +1,11 @@
 package com.bus.app
 
-import android.annotation.SuppressLint
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -55,23 +55,12 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import java.net.URLEncoder
 
-object AppState {
-    var token by mutableStateOf<String?>(null)
-    var userRole by mutableStateOf("")
-    var userLogin by mutableStateOf("")
-    var companyId by mutableStateOf<Int?>(null)
-    var companyName by mutableStateOf<String?>(null)
-    var userLocation by mutableStateOf<GeoPoint?>(null)
-    var activeBuses = mutableStateListOf<ActiveBus>()
-    var startPoint by mutableStateOf<GeoPoint?>(null)
-    var endPoint by mutableStateOf<GeoPoint?>(null)
-    var routePoints by mutableStateOf<List<GeoPoint>>(emptyList())
-    var travelTimeInfo by mutableStateOf("Расчет...")
-}
 
 data class BusStop(val name: String, val location: GeoPoint)
 
 class MainActivity : ComponentActivity() {
+    private val appViewModel: AppViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Configuration.getInstance().userAgentValue = packageName
@@ -80,29 +69,39 @@ class MainActivity : ComponentActivity() {
             СлужебныйАвтобусTheme {
                 val navController = rememberNavController()
                 val scope = rememberCoroutineScope()
+                val uiState by appViewModel.uiState.collectAsState()
 
                 LaunchedEffect(Unit) {
                     while(true) {
-                        if (AppState.userLocation == null) AppState.userLocation = GeoPoint(43.1155, 131.8855)
-                        else AppState.userLocation = GeoPoint(AppState.userLocation!!.latitude + 0.0001, AppState.userLocation!!.longitude + 0.0001)
+                        val currentState = appViewModel.uiState.value
+                        if (currentState.userLocation == null) {
+                            appViewModel.setUserLocation(GeoPoint(43.1155, 131.8855))
+                        } else {
+                            appViewModel.setUserLocation(
+                                GeoPoint(
+                                    currentState.userLocation.latitude + 0.0001,
+                                    currentState.userLocation.longitude + 0.0001
+                                )
+                            )
+                        }
                         delay(5000)
                     }
                 }
 
-                LaunchedEffect(AppState.token) {
-                    if (AppState.token != null) {
+                LaunchedEffect(uiState.token) {
+                    if (uiState.token != null) {
                         while(true) {
                             scope.launch {
                                 try {
-                                    if (AppState.userRole == "driver" && AppState.userLocation != null) {
-                                        ApiClient.api.updateLocation("Bearer ${AppState.token}", LocationUpdate(AppState.userLocation!!.latitude, AppState.userLocation!!.longitude))
+                                    val currentState = appViewModel.uiState.value
+                                    if (currentState.userRole == "driver" && currentState.userLocation != null) {
+                                        ApiClient.api.updateLocation("Bearer ${currentState.token}", LocationUpdate(currentState.userLocation.latitude, currentState.userLocation.longitude))
                                     }
-                                    val response = ApiClient.api.getActiveRoutes("Bearer ${AppState.token}")
+                                    val response = ApiClient.api.getActiveRoutes("Bearer ${currentState.token}")
                                     if (response.isSuccessful) {
-                                        AppState.activeBuses.clear()
                                         val buses = response.body() ?: emptyList()
-                                        val filtered = if (AppState.userRole == "admin") buses else buses.filter { it.companyId == AppState.companyId }
-                                        AppState.activeBuses.addAll(filtered)
+                                        val filtered = if (currentState.userRole == "admin") buses else buses.filter { it.companyId == currentState.companyId }
+                                        appViewModel.setActiveBuses(filtered)
                                     }
                                 } catch (e: Exception) { e.printStackTrace() }
                             }
@@ -112,11 +111,11 @@ class MainActivity : ComponentActivity() {
                 }
 
                 NavHost(navController = navController, startDestination = "auth") {
-                    composable("auth") { AuthScreen(navController) }
-                    composable("main_map") { MainMapScreen(navController) }
-                    composable("driver_setup") { DriverSetupScreen(navController) }
-                    composable("passenger_setup") { PassengerSetupScreen(navController) }
-                    composable("admin_panel") { AdminPanelScreen(navController) }
+                    composable("auth") { AuthScreen(navController, appViewModel) }
+                    composable("main_map") { MainMapScreen(navController, appViewModel) }
+                    composable("driver_setup") { DriverSetupScreen(navController, appViewModel) }
+                    composable("passenger_setup") { PassengerSetupScreen(navController, appViewModel) }
+                    composable("admin_panel") { AdminPanelScreen(navController, appViewModel) }
                 }
             }
         }
@@ -139,7 +138,7 @@ fun decodePolyline(encoded: String): List<GeoPoint> {
 }
 
 @Composable
-fun AuthScreen(navController: NavController) {
+fun AuthScreen(navController: NavController, appViewModel: AppViewModel) {
     var login by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
@@ -159,11 +158,7 @@ fun AuthScreen(navController: NavController) {
                         val response = ApiClient.api.login(login.trim(), password.trim())
                         if (response.isSuccessful) {
                             val body = response.body()!!
-                            AppState.token = body.accessToken
-                            AppState.userRole = body.role
-                            AppState.userLogin = body.login
-                            AppState.companyId = body.companyId
-                            AppState.companyName = body.companyName
+                            appViewModel.setAuthenticatedUser(body.accessToken, body.role, body.login, body.companyId, body.companyName)
                             navController.navigate("main_map")
                         } else { Toast.makeText(context, "Неверный вход", Toast.LENGTH_SHORT).show() }
                     } catch (e: Exception) { Toast.makeText(context, "Сервер недоступен", Toast.LENGTH_SHORT).show() }
@@ -174,7 +169,8 @@ fun AuthScreen(navController: NavController) {
 }
 
 @Composable
-fun MainMapScreen(navController: NavController) {
+fun MainMapScreen(navController: NavController, appViewModel: AppViewModel) {
+    val uiState by appViewModel.uiState.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(
@@ -182,12 +178,12 @@ fun MainMapScreen(navController: NavController) {
             factory = { context -> MapView(context).apply { setTileSource(TileSourceFactory.MAPNIK); setMultiTouchControls(true); controller.setZoom(12.0); controller.setCenter(GeoPoint(43.1155, 131.8855)) } },
             update = { view ->
                 view.overlays.clear()
-                AppState.activeBuses.forEach { bus ->
+                uiState.activeBuses.forEach { bus ->
                     val m = Marker(view); m.position = GeoPoint(bus.latitude, bus.longitude); m.title = "${bus.vehicleModel} (${bus.licensePlate})"; m.icon = view.context.getDrawable(android.R.drawable.ic_menu_compass); view.overlays.add(m)
                 }
-                AppState.userLocation?.let { val m = Marker(view); m.position = it; m.title = "Вы"; m.icon = view.context.getDrawable(android.R.drawable.star_on); view.overlays.add(m) }
-                if (AppState.routePoints.isNotEmpty()) {
-                    val line = Polyline(); line.setPoints(AppState.routePoints); line.outlinePaint.color = android.graphics.Color.GREEN; line.outlinePaint.strokeWidth = 12f; view.overlays.add(line)
+                uiState.userLocation?.let { val m = Marker(view); m.position = it; m.title = "Вы"; m.icon = view.context.getDrawable(android.R.drawable.star_on); view.overlays.add(m) }
+                if (uiState.routePoints.isNotEmpty()) {
+                    val line = Polyline(); line.setPoints(uiState.routePoints); line.outlinePaint.color = android.graphics.Color.GREEN; line.outlinePaint.strokeWidth = 12f; view.overlays.add(line)
                 }
                 view.invalidate()
             }
@@ -198,13 +194,13 @@ fun MainMapScreen(navController: NavController) {
         if (showMenu) {
             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(0.5f)).clickable { showMenu = false }) {
                 Column(modifier = Modifier.width(260.dp).fillMaxSize().background(Color(0xFF050816)).padding(24.dp).clickable(enabled=false){}) {
-                    Text("Меню (${AppState.userRole})", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text("Меню (${uiState.userRole})", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(24.dp))
-                    if (AppState.userRole == "admin") MenuButton("Админ-панель", Icons.Default.Settings) { navController.navigate("admin_panel"); showMenu = false }
-                    if (AppState.userRole == "driver" || AppState.userRole == "admin") MenuButton("Настроить рейс", Icons.Default.Add) { navController.navigate("driver_setup"); showMenu = false }
-                    if (AppState.userRole == "passenger" || AppState.userRole == "admin") MenuButton("Выбрать автобус", Icons.Default.Search) { navController.navigate("passenger_setup"); showMenu = false }
+                    if (uiState.userRole == "admin") MenuButton("Админ-панель", Icons.Default.Settings) { navController.navigate("admin_panel"); showMenu = false }
+                    if (uiState.userRole == "driver" || uiState.userRole == "admin") MenuButton("Настроить рейс", Icons.Default.Add) { navController.navigate("driver_setup"); showMenu = false }
+                    if (uiState.userRole == "passenger" || uiState.userRole == "admin") MenuButton("Выбрать автобус", Icons.Default.Search) { navController.navigate("passenger_setup"); showMenu = false }
                     Spacer(modifier = Modifier.weight(1f))
-                    MenuButton("Выйти", Icons.Default.ExitToApp) { AppState.token = null; navController.navigate("auth"); showMenu = false }
+                    MenuButton("Выйти", Icons.Default.ExitToApp) { appViewModel.logout(); navController.navigate("auth"); showMenu = false }
                 }
             }
         }
@@ -212,7 +208,8 @@ fun MainMapScreen(navController: NavController) {
 }
 
 @Composable
-fun AdminPanelScreen(navController: NavController) {
+fun AdminPanelScreen(navController: NavController, appViewModel: AppViewModel) {
+    val uiState by appViewModel.uiState.collectAsState()
     var companies by remember { mutableStateOf<List<Company>>(emptyList()) }
     var users by remember { mutableStateOf<List<UserDto>>(emptyList()) }
     var newCompName by remember { mutableStateOf("") }
@@ -226,9 +223,9 @@ fun AdminPanelScreen(navController: NavController) {
 
     fun refreshData() {
         scope.launch {
-            val cRes = ApiClient.api.getCompanies("Bearer ${AppState.token}")
+            val cRes = ApiClient.api.getCompanies("Bearer ${uiState.token}")
             if (cRes.isSuccessful) companies = cRes.body() ?: emptyList()
-            val uRes = ApiClient.api.getUsers("Bearer ${AppState.token}")
+            val uRes = ApiClient.api.getUsers("Bearer ${uiState.token}")
             if (uRes.isSuccessful) users = uRes.body() ?: emptyList()
         }
     }
@@ -238,8 +235,8 @@ fun AdminPanelScreen(navController: NavController) {
         Text("Админ-панель", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(24.dp)); Text("1. Компании", color = Color(0xFF00F5FF))
         NeonTextField(newCompName, { newCompName = it }, "Название")
-        Button(modifier = Modifier.fillMaxWidth(), onClick = { scope.launch { 
-            if (ApiClient.api.createCompany("Bearer ${AppState.token}", mapOf("name" to newCompName)).isSuccessful) { Toast.makeText(context, "Компания создана", Toast.LENGTH_SHORT).show(); newCompName = ""; refreshData() }
+        Button(modifier = Modifier.fillMaxWidth(), onClick = { scope.launch {
+            if (ApiClient.api.createCompany("Bearer ${uiState.token}", mapOf("name" to newCompName)).isSuccessful) { Toast.makeText(context, "Компания создана", Toast.LENGTH_SHORT).show(); newCompName = ""; refreshData() }
             else { Toast.makeText(context, "Ошибка создания", Toast.LENGTH_SHORT).show() }
         } }) { Text("Добавить компанию") }
 
@@ -252,12 +249,12 @@ fun AdminPanelScreen(navController: NavController) {
         }
         if (newUserRole == "driver") { NeonTextField(vModel, { vModel = it }, "Марка"); NeonTextField(lPlate, { lPlate = it }, "Номер") }
         Text("Компания:", color = Color.Gray)
-        companies.forEach { comp -> Row(Modifier.clickable { selectedCompId = comp.id }, verticalAlignment = Alignment.CenterVertically) { 
+        companies.forEach { comp -> Row(Modifier.clickable { selectedCompId = comp.id }, verticalAlignment = Alignment.CenterVertically) {
             RadioButton(selectedCompId == comp.id, { selectedCompId = comp.id }); Text(comp.name, color = Color.White)
         } }
         Button(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), onClick = { scope.launch {
             val req = UserCreateRequest(newUserLogin, newUserPass, newUserRole, selectedCompId ?: 0, vModel, lPlate)
-            if (ApiClient.api.createUser("Bearer ${AppState.token}", req).isSuccessful) { Toast.makeText(context, "Пользователь создан", Toast.LENGTH_SHORT).show(); newUserLogin = ""; newUserPass = ""; refreshData() }
+            if (ApiClient.api.createUser("Bearer ${uiState.token}", req).isSuccessful) { Toast.makeText(context, "Пользователь создан", Toast.LENGTH_SHORT).show(); newUserLogin = ""; newUserPass = ""; refreshData() }
             else { Toast.makeText(context, "Ошибка", Toast.LENGTH_SHORT).show() }
         } }) { Text("Создать пользователя") }
 
@@ -268,18 +265,19 @@ fun AdminPanelScreen(navController: NavController) {
 }
 
 @Composable
-fun DriverSetupScreen(navController: NavController) {
+fun DriverSetupScreen(navController: NavController, appViewModel: AppViewModel) {
+    val uiState by appViewModel.uiState.collectAsState()
     var sName by remember { mutableStateOf("") }; var eName by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF050816)).padding(24.dp)) {
         Text("Создание рейса", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(16.dp)); SearchableStopField("Откуда", sName, { sName = it }, { AppState.startPoint = it.location })
-        Spacer(modifier = Modifier.height(16.dp)); SearchableStopField("Куда", eName, { eName = it }, { AppState.endPoint = it.location })
+        Spacer(modifier = Modifier.height(16.dp)); SearchableStopField("Откуда", sName, { sName = it }, { appViewModel.setStartPoint(it.location) })
+        Spacer(modifier = Modifier.height(16.dp)); SearchableStopField("Куда", eName, { eName = it }, { appViewModel.setEndPoint(it.location) })
         Spacer(modifier = Modifier.weight(1f))
-        if (AppState.startPoint != null && AppState.endPoint != null) {
-            NeonRunningButton("Запустить рейс", "Старт") { scope.launch { 
-                val req = RouteRequest(sName, AppState.startPoint!!.latitude, AppState.startPoint!!.longitude, eName, AppState.endPoint!!.latitude, AppState.endPoint!!.longitude, "Теперь")
-                if (ApiClient.api.startRoute("Bearer ${AppState.token}", req).isSuccessful) navController.navigate("main_map")
+        if (uiState.startPoint != null && uiState.endPoint != null) {
+            NeonRunningButton("Запустить рейс", "Старт") { scope.launch {
+                val req = RouteRequest(sName, uiState.startPoint!!.latitude, uiState.startPoint!!.longitude, eName, uiState.endPoint!!.latitude, uiState.endPoint!!.longitude, "Теперь")
+                if (ApiClient.api.startRoute("Bearer ${uiState.token}", req).isSuccessful) navController.navigate("main_map")
             } }
         }
         Button(modifier = Modifier.fillMaxWidth(), onClick = { navController.popBackStack() }) { Text("Назад") }
@@ -287,10 +285,11 @@ fun DriverSetupScreen(navController: NavController) {
 }
 
 @Composable
-fun PassengerSetupScreen(navController: NavController) {
+fun PassengerSetupScreen(navController: NavController, appViewModel: AppViewModel) {
+    val uiState by appViewModel.uiState.collectAsState()
     Column(Modifier.fillMaxSize().background(Color(0xFF050816)).padding(24.dp)) {
         Text("Ваши автобусы", color = Color.White, fontSize = 20.sp); Spacer(Modifier.height(16.dp))
-        LazyColumn(Modifier.weight(1f)) { items(AppState.activeBuses) { bus -> Card(Modifier.fillMaxWidth().padding(vertical=4.dp).clickable{navController.navigate("main_map")}, colors=CardDefaults.cardColors(containerColor=Color(0xFF10192F))) { 
+        LazyColumn(Modifier.weight(1f)) { items(uiState.activeBuses) { bus -> Card(Modifier.fillMaxWidth().padding(vertical=4.dp).clickable{navController.navigate("main_map")}, colors=CardDefaults.cardColors(containerColor=Color(0xFF10192F))) {
             Column(Modifier.padding(16.dp)) { Text(bus.vehicleModel ?: "Автобус", color=Color.White, fontWeight=FontWeight.Bold); Text(bus.licensePlate ?: bus.driverLogin, color=Color.Gray, fontSize=12.sp) }
         } } }
         Button(modifier = Modifier.fillMaxWidth(), onClick={navController.popBackStack()}) { Text("Назад") }
