@@ -17,6 +17,29 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    flavorDimensions += "environment"
+    productFlavors {
+        create("dev") {
+            dimension = "environment"
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            buildConfigField("String", "BASE_URL", "\"https://orientation-ahead-stroke-statutory.trycloudflare.com/\"")
+            buildConfigField("boolean", "HTTP_LOGGING_ENABLED", "true")
+        }
+        create("stage") {
+            dimension = "environment"
+            applicationIdSuffix = ".stage"
+            versionNameSuffix = "-stage"
+            buildConfigField("String", "BASE_URL", "\"https://orientation-ahead-stroke-statutory.trycloudflare.com/\"")
+            buildConfigField("boolean", "HTTP_LOGGING_ENABLED", "true")
+        }
+        create("prod") {
+            dimension = "environment"
+            buildConfigField("String", "BASE_URL", "\"https://orientation-ahead-stroke-statutory.trycloudflare.com/\"")
+            buildConfigField("boolean", "HTTP_LOGGING_ENABLED", "false")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -32,6 +55,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -43,6 +67,7 @@ dependencies {
     implementation(libs.gson)
     implementation(libs.retrofit)
     implementation(libs.retrofit.gson)
+    implementation(libs.play.services.location)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
