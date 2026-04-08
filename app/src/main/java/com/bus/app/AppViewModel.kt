@@ -28,7 +28,8 @@ data class AppUiState(
     val startPoint: GeoPoint? = null,
     val endPoint: GeoPoint? = null,
     val routePoints: List<GeoPoint> = emptyList(),
-    val travelTimeInfo: String = "Расчет..."
+    val travelTimeInfo: String = "Расчет...",
+    val errorMessage: String? = null
 )
 
 class AppViewModel(
@@ -61,6 +62,10 @@ class AppViewModel(
         _uiState.update { AppUiState() }
     }
 
+    fun clearError() {
+        _uiState.update { it.copy(errorMessage = null) }
+    }
+
     fun setUserLocation(location: GeoPoint) {
         _uiState.update { it.copy(userLocation = location) }
     }
@@ -82,7 +87,12 @@ class AppViewModel(
     }
 
     suspend fun login(username: String, password: String): Boolean {
-        val response = loginUseCase(username, password) ?: return false
+        val response = try {
+            loginUseCase(username, password)
+        } catch (_: Exception) {
+            _uiState.update { it.copy(errorMessage = "Ошибка сети при входе") }
+            null
+        } ?: return false
         setAuthenticatedUser(
             token = response.accessToken,
             role = response.role,
@@ -94,38 +104,62 @@ class AppViewModel(
     }
 
     suspend fun refreshActiveRoutes() {
-        val state = _uiState.value
-        val token = state.token ?: return
-        val location = state.userLocation?.let { LocationUpdate(it.latitude, it.longitude) }
-        val buses = syncActiveRoutesUseCase(
-            token = "Bearer $token",
-            role = state.userRole,
-            companyId = state.companyId,
-            userLocation = location
-        ) ?: return
-        setActiveBuses(buses)
+        try {
+            val state = _uiState.value
+            val token = state.token ?: return
+            val location = state.userLocation?.let { LocationUpdate(it.latitude, it.longitude) }
+            val buses = syncActiveRoutesUseCase(
+                token = "Bearer $token",
+                role = state.userRole,
+                companyId = state.companyId,
+                userLocation = location
+            ) ?: return
+            setActiveBuses(buses)
+        } catch (_: Exception) {
+            _uiState.update { it.copy(errorMessage = "Не удалось обновить данные маршрутов") }
+        }
     }
 
     suspend fun getAdminData(): Pair<List<Company>, List<UserDto>> {
-        val token = _uiState.value.token ?: return emptyList<Company>() to emptyList()
-        val auth = "Bearer $token"
-        val companies = repository.getCompanies(auth) ?: emptyList()
-        val users = repository.getUsers(auth) ?: emptyList()
-        return companies to users
+        return try {
+            val token = _uiState.value.token ?: return emptyList<Company>() to emptyList()
+            val auth = "Bearer $token"
+            val companies = repository.getCompanies(auth) ?: emptyList()
+            val users = repository.getUsers(auth) ?: emptyList()
+            companies to users
+        } catch (_: Exception) {
+            _uiState.update { it.copy(errorMessage = "Не удалось загрузить данные админ-панели") }
+            emptyList<Company>() to emptyList()
+        }
     }
 
     suspend fun createCompany(name: String): Boolean {
-        val token = _uiState.value.token ?: return false
-        return repository.createCompany("Bearer $token", name)
+        return try {
+            val token = _uiState.value.token ?: return false
+            repository.createCompany("Bearer $token", name)
+        } catch (_: Exception) {
+            _uiState.update { it.copy(errorMessage = "Ошибка сети при создании компании") }
+            false
+        }
     }
 
     suspend fun createUser(request: UserCreateRequest): Boolean {
-        val token = _uiState.value.token ?: return false
-        return repository.createUser("Bearer $token", request)
+        return try {
+            val token = _uiState.value.token ?: return false
+            repository.createUser("Bearer $token", request)
+        } catch (_: Exception) {
+            _uiState.update { it.copy(errorMessage = "Ошибка сети при создании пользователя") }
+            false
+        }
     }
 
     suspend fun startRoute(route: RouteRequest): Boolean {
-        val token = _uiState.value.token ?: return false
-        return repository.startRoute("Bearer $token", route) != null
+        return try {
+            val token = _uiState.value.token ?: return false
+            repository.startRoute("Bearer $token", route) != null
+        } catch (_: Exception) {
+            _uiState.update { it.copy(errorMessage = "Ошибка сети при запуске рейса") }
+            false
+        }
     }
 }

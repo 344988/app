@@ -2,10 +2,15 @@ package com.bus.app
 
 import android.os.Bundle
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.core.content.ContextCompat
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Looper
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -54,15 +59,35 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import java.net.URLEncoder
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 
 
 data class BusStop(val name: String, val location: GeoPoint)
 
 class MainActivity : ComponentActivity() {
     private val appViewModel: AppViewModel by viewModels()
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private var locationCallback: LocationCallback? = null
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            startLocationUpdates()
+        } else {
+            Toast.makeText(this, "Разрешение на геолокацию не выдано", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         Configuration.getInstance().userAgentValue = packageName
         enableEdgeToEdge()
         setContent {
@@ -71,20 +96,10 @@ class MainActivity : ComponentActivity() {
                 val scope = rememberCoroutineScope()
                 val uiState by appViewModel.uiState.collectAsState()
 
-                LaunchedEffect(Unit) {
-                    while(true) {
-                        val currentState = appViewModel.uiState.value
-                        if (currentState.userLocation == null) {
-                            appViewModel.setUserLocation(GeoPoint(43.1155, 131.8855))
-                        } else {
-                            appViewModel.setUserLocation(
-                                GeoPoint(
-                                    currentState.userLocation.latitude + 0.0001,
-                                    currentState.userLocation.longitude + 0.0001
-                                )
-                            )
-                        }
-                        delay(5000)
+                LaunchedEffect(uiState.errorMessage) {
+                    if (uiState.errorMessage != null) {
+                        Toast.makeText(this@MainActivity, uiState.errorMessage, Toast.LENGTH_SHORT).show()
+                        appViewModel.clearError()
                     }
                 }
 
@@ -92,9 +107,7 @@ class MainActivity : ComponentActivity() {
                     if (uiState.token != null) {
                         while(true) {
                             scope.launch {
-                                try {
-                                    appViewModel.refreshActiveRoutes()
-                                } catch (e: Exception) { e.printStackTrace() }
+                                appViewModel.refreshActiveRoutes()
                             }
                             delay(5000)
                         }
@@ -109,6 +122,63 @@ class MainActivity : ComponentActivity() {
                     composable("admin_panel") { AdminPanelScreen(navController, appViewModel) }
                 }
             }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        ensureLocationPermissionAndStartUpdates()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        stopLocationUpdates()
+    }
+
+    private fun ensureLocationPermissionAndStartUpdates() {
+        if (hasLocationPermission()) {
+            startLocationUpdates()
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    private fun hasLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun startLocationUpdates() {
+        if (!hasLocationPermission()) return
+        if (locationCallback != null) return
+
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000L)
+            .setMinUpdateIntervalMillis(2000L)
+            .build()
+
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                val location = result.lastLocation ?: return
+                appViewModel.setUserLocation(GeoPoint(location.latitude, location.longitude))
+            }
+        }
+
+        fusedLocationClient.requestLocationUpdates(
+            request,
+            locationCallback as LocationCallback,
+            Looper.getMainLooper()
+        )
+    }
+
+    private fun stopLocationUpdates() {
+        locationCallback?.let {
+            fusedLocationClient.removeLocationUpdates(it)
+            locationCallback = null
         }
     }
 }
