@@ -93,16 +93,7 @@ class MainActivity : ComponentActivity() {
                         while(true) {
                             scope.launch {
                                 try {
-                                    val currentState = appViewModel.uiState.value
-                                    if (currentState.userRole == "driver" && currentState.userLocation != null) {
-                                        ApiClient.api.updateLocation("Bearer ${currentState.token}", LocationUpdate(currentState.userLocation.latitude, currentState.userLocation.longitude))
-                                    }
-                                    val response = ApiClient.api.getActiveRoutes("Bearer ${currentState.token}")
-                                    if (response.isSuccessful) {
-                                        val buses = response.body() ?: emptyList()
-                                        val filtered = if (currentState.userRole == "admin") buses else buses.filter { it.companyId == currentState.companyId }
-                                        appViewModel.setActiveBuses(filtered)
-                                    }
+                                    appViewModel.refreshActiveRoutes()
                                 } catch (e: Exception) { e.printStackTrace() }
                             }
                             delay(5000)
@@ -155,10 +146,7 @@ fun AuthScreen(navController: NavController, appViewModel: AppViewModel) {
             NeonRunningButton("Войти", "Авторизация") {
                 scope.launch {
                     try {
-                        val response = ApiClient.api.login(login.trim(), password.trim())
-                        if (response.isSuccessful) {
-                            val body = response.body()!!
-                            appViewModel.setAuthenticatedUser(body.accessToken, body.role, body.login, body.companyId, body.companyName)
+                        if (appViewModel.login(login.trim(), password.trim())) {
                             navController.navigate("main_map")
                         } else { Toast.makeText(context, "Неверный вход", Toast.LENGTH_SHORT).show() }
                     } catch (e: Exception) { Toast.makeText(context, "Сервер недоступен", Toast.LENGTH_SHORT).show() }
@@ -209,7 +197,6 @@ fun MainMapScreen(navController: NavController, appViewModel: AppViewModel) {
 
 @Composable
 fun AdminPanelScreen(navController: NavController, appViewModel: AppViewModel) {
-    val uiState by appViewModel.uiState.collectAsState()
     var companies by remember { mutableStateOf<List<Company>>(emptyList()) }
     var users by remember { mutableStateOf<List<UserDto>>(emptyList()) }
     var newCompName by remember { mutableStateOf("") }
@@ -223,10 +210,9 @@ fun AdminPanelScreen(navController: NavController, appViewModel: AppViewModel) {
 
     fun refreshData() {
         scope.launch {
-            val cRes = ApiClient.api.getCompanies("Bearer ${uiState.token}")
-            if (cRes.isSuccessful) companies = cRes.body() ?: emptyList()
-            val uRes = ApiClient.api.getUsers("Bearer ${uiState.token}")
-            if (uRes.isSuccessful) users = uRes.body() ?: emptyList()
+            val (nextCompanies, nextUsers) = appViewModel.getAdminData()
+            companies = nextCompanies
+            users = nextUsers
         }
     }
     LaunchedEffect(Unit) { refreshData() }
@@ -236,7 +222,7 @@ fun AdminPanelScreen(navController: NavController, appViewModel: AppViewModel) {
         Spacer(modifier = Modifier.height(24.dp)); Text("1. Компании", color = Color(0xFF00F5FF))
         NeonTextField(newCompName, { newCompName = it }, "Название")
         Button(modifier = Modifier.fillMaxWidth(), onClick = { scope.launch {
-            if (ApiClient.api.createCompany("Bearer ${uiState.token}", mapOf("name" to newCompName)).isSuccessful) { Toast.makeText(context, "Компания создана", Toast.LENGTH_SHORT).show(); newCompName = ""; refreshData() }
+            if (appViewModel.createCompany(newCompName)) { Toast.makeText(context, "Компания создана", Toast.LENGTH_SHORT).show(); newCompName = ""; refreshData() }
             else { Toast.makeText(context, "Ошибка создания", Toast.LENGTH_SHORT).show() }
         } }) { Text("Добавить компанию") }
 
@@ -254,7 +240,7 @@ fun AdminPanelScreen(navController: NavController, appViewModel: AppViewModel) {
         } }
         Button(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), onClick = { scope.launch {
             val req = UserCreateRequest(newUserLogin, newUserPass, newUserRole, selectedCompId ?: 0, vModel, lPlate)
-            if (ApiClient.api.createUser("Bearer ${uiState.token}", req).isSuccessful) { Toast.makeText(context, "Пользователь создан", Toast.LENGTH_SHORT).show(); newUserLogin = ""; newUserPass = ""; refreshData() }
+            if (appViewModel.createUser(req)) { Toast.makeText(context, "Пользователь создан", Toast.LENGTH_SHORT).show(); newUserLogin = ""; newUserPass = ""; refreshData() }
             else { Toast.makeText(context, "Ошибка", Toast.LENGTH_SHORT).show() }
         } }) { Text("Создать пользователя") }
 
@@ -277,7 +263,7 @@ fun DriverSetupScreen(navController: NavController, appViewModel: AppViewModel) 
         if (uiState.startPoint != null && uiState.endPoint != null) {
             NeonRunningButton("Запустить рейс", "Старт") { scope.launch {
                 val req = RouteRequest(sName, uiState.startPoint!!.latitude, uiState.startPoint!!.longitude, eName, uiState.endPoint!!.latitude, uiState.endPoint!!.longitude, "Теперь")
-                if (ApiClient.api.startRoute("Bearer ${uiState.token}", req).isSuccessful) navController.navigate("main_map")
+                if (appViewModel.startRoute(req)) navController.navigate("main_map")
             } }
         }
         Button(modifier = Modifier.fillMaxWidth(), onClick = { navController.popBackStack() }) { Text("Назад") }
