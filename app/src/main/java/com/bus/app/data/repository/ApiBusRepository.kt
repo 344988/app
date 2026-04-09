@@ -42,7 +42,7 @@ class ApiBusRepository : BusRepository {
     }
 
     override suspend fun login(username: String, password: String): LoginResponse? {
-        val response = retryWithBackoff { ApiClient.api.login(username = username, login = username, pass = password) }
+        val response = retryWithBackoff { ApiClient.api.login(username = username, pass = password) }
         return if (response.isSuccessful) response.body() else null
     }
 

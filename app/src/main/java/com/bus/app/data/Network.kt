@@ -75,7 +75,6 @@ interface BusApi {
     @POST("/auth/login")
     suspend fun login(
         @Field("username") username: String,
-        @Field("login") login: String,
         @Field("password") pass: String
     ): Response<LoginResponse>
 
