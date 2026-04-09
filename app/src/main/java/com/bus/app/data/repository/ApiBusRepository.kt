@@ -2,7 +2,6 @@ package com.bus.app.data.repository
 
 import com.bus.app.data.ActiveBus
 import com.bus.app.data.ApiClient
-import com.bus.app.data.Company
 import com.bus.app.data.LocationUpdate
 import com.bus.app.data.LoginResponse
 import com.bus.app.data.RouteRequest
@@ -58,15 +57,6 @@ class ApiBusRepository : BusRepository {
     override suspend fun startRoute(token: String, route: RouteRequest): RouteResponse? {
         val response = retryWithBackoff { ApiClient.api.startRoute(token, route) }
         return if (response.isSuccessful) response.body() else null
-    }
-
-    override suspend fun getCompanies(token: String): List<Company>? {
-        val response = retryWithBackoff { ApiClient.api.getCompanies(token) }
-        return if (response.isSuccessful) response.body() else null
-    }
-
-    override suspend fun createCompany(token: String, name: String): Boolean {
-        return retryWithBackoff { ApiClient.api.createCompany(token, mapOf("name" to name)) }.isSuccessful
     }
 
     override suspend fun getUsers(token: String): List<UserDto>? {

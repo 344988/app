@@ -31,6 +31,10 @@
 - `passenger`: карта, выбор автобуса.
 - `customer`: базовый fallback-экран (если роль расширится API, UI не должен падать).
 
+## Важно про API-синхронизацию
+- В Android отключен CRUD компаний, так как в текущем backend API нет стабильного `/admin/companies`.
+- Для admin UI оставлены только сценарии, соответствующие реально используемым endpoint’ам (`users/roles/logs/requests`).
+
 ## Технологии
 - Kotlin
 - MVVM + ViewModel + StateFlow

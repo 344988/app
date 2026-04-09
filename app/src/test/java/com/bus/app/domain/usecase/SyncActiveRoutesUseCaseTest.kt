@@ -68,8 +68,6 @@ private class FakeSyncRepository(
         return true
     }
     override suspend fun startRoute(token: String, route: RouteRequest): RouteResponse? = null
-    override suspend fun getCompanies(token: String) = emptyList<com.bus.app.data.Company>()
-    override suspend fun createCompany(token: String, name: String) = true
     override suspend fun getUsers(token: String) = emptyList<com.bus.app.data.UserDto>()
     override suspend fun createUser(token: String, request: UserCreateRequest) = true
 }

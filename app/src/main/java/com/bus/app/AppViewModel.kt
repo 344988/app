@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.bus.app.data.ActiveBus
-import com.bus.app.data.Company
 import com.bus.app.data.LocationUpdate
 import com.bus.app.data.RouteRequest
 import com.bus.app.data.UserCreateRequest
@@ -173,26 +172,15 @@ class AppViewModel(
         }
     }
 
-    suspend fun getAdminData(): Pair<List<Company>, List<UserDto>> {
+    suspend fun getAdminData(): List<UserDto> {
         return try {
-            val token = _uiState.value.token ?: return emptyList<Company>() to emptyList()
+            val token = _uiState.value.token ?: return emptyList()
             val auth = "Bearer $token"
-            val companies = repository.getCompanies(auth) ?: emptyList()
             val users = repository.getUsers(auth) ?: emptyList()
-            companies to users
+            users
         } catch (_: Exception) {
             _uiState.update { it.copy(errorMessage = "Не удалось загрузить данные админ-панели") }
-            emptyList<Company>() to emptyList()
-        }
-    }
-
-    suspend fun createCompany(name: String): Boolean {
-        return try {
-            val token = _uiState.value.token ?: return false
-            repository.createCompany("Bearer $token", name)
-        } catch (_: Exception) {
-            _uiState.update { it.copy(errorMessage = "Ошибка сети при создании компании") }
-            false
+            emptyList()
         }
     }
 

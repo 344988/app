@@ -359,36 +359,25 @@ fun MainMapScreen(navController: NavController, appViewModel: AppViewModel) {
 
 @Composable
 fun AdminPanelScreen(navController: NavController, appViewModel: AppViewModel) {
-    var companies by remember { mutableStateOf<List<Company>>(emptyList()) }
     var users by remember { mutableStateOf<List<UserDto>>(emptyList()) }
-    var newCompName by remember { mutableStateOf("") }
     var newUserLogin by remember { mutableStateOf("") }
     var newUserPass by remember { mutableStateOf("") }
     var newUserRole by remember { mutableStateOf("passenger") }
-    var selectedCompId by remember { mutableStateOf<Int?>(null) }
     var vModel by remember { mutableStateOf("") }
     var lPlate by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope(); val scroll = rememberScrollState(); val context = LocalContext.current
 
     fun refreshData() {
         scope.launch {
-            val (nextCompanies, nextUsers) = appViewModel.getAdminData()
-            companies = nextCompanies
-            users = nextUsers
+            users = appViewModel.getAdminData()
         }
     }
     LaunchedEffect(Unit) { refreshData() }
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF050816)).padding(24.dp).verticalScroll(scroll)) {
         Text("Админ-панель", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(24.dp)); Text("1. Компании", color = Color(0xFF00F5FF))
-        NeonTextField(newCompName, { newCompName = it }, "Название")
-        Button(modifier = Modifier.fillMaxWidth(), onClick = { scope.launch {
-            if (appViewModel.createCompany(newCompName)) { Toast.makeText(context, "Компания создана", Toast.LENGTH_SHORT).show(); newCompName = ""; refreshData() }
-            else { Toast.makeText(context, "Ошибка создания", Toast.LENGTH_SHORT).show() }
-        } }) { Text("Добавить компанию") }
-
-        Spacer(modifier = Modifier.height(24.dp)); Text("2. Пользователь", color = Color(0xFF00F5FF))
+        Spacer(modifier = Modifier.height(24.dp)); Text("CRUD компаний недоступен в текущей версии API", color = Color(0xFFFFEA00), fontSize = 12.sp)
+        Spacer(modifier = Modifier.height(24.dp)); Text("Пользователь", color = Color(0xFF00F5FF))
         NeonTextField(newUserLogin, { newUserLogin = it }, "Логин")
         NeonTextField(newUserPass, { newUserPass = it }, "Пароль")
         Row {
@@ -396,17 +385,13 @@ fun AdminPanelScreen(navController: NavController, appViewModel: AppViewModel) {
             RadioButton(newUserRole == "driver", { newUserRole = "driver" }); Text("Вод.", color = Color.White)
         }
         if (newUserRole == "driver") { NeonTextField(vModel, { vModel = it }, "Марка"); NeonTextField(lPlate, { lPlate = it }, "Номер") }
-        Text("Компания:", color = Color.Gray)
-        companies.forEach { comp -> Row(Modifier.clickable { selectedCompId = comp.id }, verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selectedCompId == comp.id, { selectedCompId = comp.id }); Text(comp.name, color = Color.White)
-        } }
         Button(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), onClick = { scope.launch {
-            val req = UserCreateRequest(newUserLogin, newUserPass, newUserRole, selectedCompId ?: 0, vModel, lPlate)
+            val req = UserCreateRequest(newUserLogin, newUserPass, newUserRole, null, vModel, lPlate)
             if (appViewModel.createUser(req)) { Toast.makeText(context, "Пользователь создан", Toast.LENGTH_SHORT).show(); newUserLogin = ""; newUserPass = ""; refreshData() }
             else { Toast.makeText(context, "Ошибка", Toast.LENGTH_SHORT).show() }
         } }) { Text("Создать пользователя") }
 
-        Spacer(modifier = Modifier.height(32.dp)); Text("3. Список пользователей", color = Color(0xFF00F5FF))
+        Spacer(modifier = Modifier.height(32.dp)); Text("Список пользователей", color = Color(0xFF00F5FF))
         users.forEach { user -> Text("${user.role}: ${user.login} (${user.companyName})", color = Color.Gray, fontSize = 14.sp) }
         Spacer(modifier = Modifier.height(24.dp)); Button(modifier = Modifier.fillMaxWidth(), onClick = { navController.popBackStack() }) { Text("Назад") }
     }
