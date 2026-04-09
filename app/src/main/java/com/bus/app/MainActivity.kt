@@ -55,7 +55,7 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
@@ -68,6 +68,14 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 
+private val OSM_HTTPS_TILE_SOURCE = XYTileSource(
+    "OSM-HTTPS",
+    0,
+    19,
+    256,
+    ".png",
+    arrayOf("https://tile.openstreetmap.org/")
+)
 
 data class BusStop(val name: String, val location: GeoPoint)
 
@@ -241,10 +249,37 @@ fun AuthScreen(navController: NavController, appViewModel: AppViewModel) {
 fun MainMapScreen(navController: NavController, appViewModel: AppViewModel) {
     val uiState by appViewModel.uiState.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
+    var mapError by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            try {
+                val response = ApiClient.okHttpClient.newCall(
+                    Request.Builder()
+                        .url("https://tile.openstreetmap.org/0/0/0.png")
+                        .header("User-Agent", "BusApp")
+                        .head()
+                        .build()
+                ).execute()
+                if (!response.isSuccessful) {
+                    withContext(Dispatchers.Main) {
+                        mapError = "Не удалось загрузить тайлы карты (код ${response.code})."
+                    }
+                } else {
+                    withContext(Dispatchers.Main) { mapError = null }
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    mapError = "Нет доступа к tile.openstreetmap.org. Проверьте интернет/DNS."
+                }
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
-            factory = { context -> MapView(context).apply { setTileSource(TileSourceFactory.MAPNIK); setMultiTouchControls(true); controller.setZoom(12.0); controller.setCenter(GeoPoint(43.1155, 131.8855)) } },
+            factory = { context -> MapView(context).apply { setTileSource(OSM_HTTPS_TILE_SOURCE); setMultiTouchControls(true); controller.setZoom(12.0); controller.setCenter(GeoPoint(43.1155, 131.8855)) } },
             update = { view ->
                 view.overlays.clear()
                 uiState.activeBuses.forEach { bus ->
@@ -257,6 +292,18 @@ fun MainMapScreen(navController: NavController, appViewModel: AppViewModel) {
                 view.invalidate()
             }
         )
+        mapError?.let { error ->
+            Text(
+                text = error,
+                color = Color.White,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 44.dp)
+                    .background(Color(0xCCB00020), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            )
+        }
         IconButton(onClick = { showMenu = !showMenu }, modifier = Modifier.padding(top = 40.dp, start = 16.dp).background(Color(0xFF0A1024).copy(0.8f), RoundedCornerShape(8.dp))) {
             Icon(Icons.Default.Menu, null, tint = Color.White)
         }
