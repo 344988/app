@@ -21,53 +21,30 @@ android {
 
     flavorDimensions += "environment"
     productFlavors {
-        create("dev") {
+        maybeCreate("dev").apply {
             dimension = "environment"
             applicationIdSuffix = ".dev"
             versionNameSuffix = "-dev"
-            buildConfigField("String", "BASE_URL", "\"https://orientation-ahead-stroke-statutory.trycloudflare.com/\"")
+            buildConfigField("String", "BASE_URL", "\"http://37.200.79.56:8000/\"")
             buildConfigField("boolean", "HTTP_LOGGING_ENABLED", "true")
             manifestPlaceholders["usesCleartextTraffic"] = "true"
             manifestPlaceholders["networkSecurityConfig"] = "@xml/network_security_config"
         }
-        create("stage") {
+        maybeCreate("stage").apply {
             dimension = "environment"
             applicationIdSuffix = ".stage"
             versionNameSuffix = "-stage"
-            buildConfigField("String", "BASE_URL", "\"https://orientation-ahead-stroke-statutory.trycloudflare.com/\"")
+            buildConfigField("String", "BASE_URL", "\"http://37.200.79.56:8000/\"")
             buildConfigField("boolean", "HTTP_LOGGING_ENABLED", "true")
             manifestPlaceholders["usesCleartextTraffic"] = "false"
             manifestPlaceholders["networkSecurityConfig"] = "@null"
         }
-        create("prod") {
+        maybeCreate("prod").apply {
             dimension = "environment"
-            buildConfigField("String", "BASE_URL", "\"https://orientation-ahead-stroke-statutory.trycloudflare.com/\"")
+            buildConfigField("String", "BASE_URL", "\"http://37.200.79.56:8000/\"")
             buildConfigField("boolean", "HTTP_LOGGING_ENABLED", "false")
             manifestPlaceholders["usesCleartextTraffic"] = "false"
             manifestPlaceholders["networkSecurityConfig"] = "@null"
-        }
-    }
-
-    flavorDimensions += "environment"
-    productFlavors {
-        create("dev") {
-            dimension = "environment"
-            applicationIdSuffix = ".dev"
-            versionNameSuffix = "-dev"
-            buildConfigField("String", "BASE_URL", "\"https://orientation-ahead-stroke-statutory.trycloudflare.com/\"")
-            buildConfigField("boolean", "HTTP_LOGGING_ENABLED", "true")
-        }
-        create("stage") {
-            dimension = "environment"
-            applicationIdSuffix = ".stage"
-            versionNameSuffix = "-stage"
-            buildConfigField("String", "BASE_URL", "\"https://orientation-ahead-stroke-statutory.trycloudflare.com/\"")
-            buildConfigField("boolean", "HTTP_LOGGING_ENABLED", "true")
-        }
-        create("prod") {
-            dimension = "environment"
-            buildConfigField("String", "BASE_URL", "\"https://orientation-ahead-stroke-statutory.trycloudflare.com/\"")
-            buildConfigField("boolean", "HTTP_LOGGING_ENABLED", "false")
         }
     }
 
