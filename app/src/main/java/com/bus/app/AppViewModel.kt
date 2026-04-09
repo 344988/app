@@ -42,6 +42,8 @@ class AppViewModel(
     application: Application,
     private val repository: BusRepository = ApiBusRepository()
 ) : AndroidViewModel(application) {
+    constructor(application: Application) : this(application, ApiBusRepository())
+
     private val _uiState = MutableStateFlow(AppUiState())
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
     private val loginUseCase = LoginUseCase(repository)
