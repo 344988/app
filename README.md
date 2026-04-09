@@ -7,6 +7,7 @@
 
 ## Где менять BASE_URL
 - Текущее значение задается в `app/src/main/java/com/bus/app/config/AppConfig.kt`.
+- Текущий публичный адрес сервера: `https://collector-heavily-diving-brochures.trycloudflare.com/`.
 - Swagger доступен по адресу: `<BASE_URL>/docs`.
 
 ## Авторизация
@@ -49,4 +50,3 @@
 
 ## Timezone / даты
 - Все даты в UI должны отображаться в локальном часовом поясе устройства.
-

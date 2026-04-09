@@ -73,7 +73,11 @@ interface BusApi {
 
     @FormUrlEncoded
     @POST("/auth/login")
-    suspend fun login(@Field("username") user: String, @Field("password") pass: String): Response<LoginResponse>
+    suspend fun login(
+        @Field("username") username: String,
+        @Field("login") login: String,
+        @Field("password") pass: String
+    ): Response<LoginResponse>
 
     @GET("/routes/active")
     suspend fun getActiveRoutes(@Header("Authorization") token: String): Response<List<ActiveBus>>
