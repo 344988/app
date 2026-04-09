@@ -15,6 +15,37 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders["usesCleartextTraffic"] = "false"
+        manifestPlaceholders["networkSecurityConfig"] = "@null"
+    }
+
+    flavorDimensions += "environment"
+    productFlavors {
+        create("dev") {
+            dimension = "environment"
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            buildConfigField("String", "BASE_URL", "\"https://orientation-ahead-stroke-statutory.trycloudflare.com/\"")
+            buildConfigField("boolean", "HTTP_LOGGING_ENABLED", "true")
+            manifestPlaceholders["usesCleartextTraffic"] = "true"
+            manifestPlaceholders["networkSecurityConfig"] = "@xml/network_security_config"
+        }
+        create("stage") {
+            dimension = "environment"
+            applicationIdSuffix = ".stage"
+            versionNameSuffix = "-stage"
+            buildConfigField("String", "BASE_URL", "\"https://orientation-ahead-stroke-statutory.trycloudflare.com/\"")
+            buildConfigField("boolean", "HTTP_LOGGING_ENABLED", "true")
+            manifestPlaceholders["usesCleartextTraffic"] = "false"
+            manifestPlaceholders["networkSecurityConfig"] = "@null"
+        }
+        create("prod") {
+            dimension = "environment"
+            buildConfigField("String", "BASE_URL", "\"https://orientation-ahead-stroke-statutory.trycloudflare.com/\"")
+            buildConfigField("boolean", "HTTP_LOGGING_ENABLED", "false")
+            manifestPlaceholders["usesCleartextTraffic"] = "false"
+            manifestPlaceholders["networkSecurityConfig"] = "@null"
+        }
     }
 
     buildTypes {
@@ -32,6 +63,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -43,6 +75,8 @@ dependencies {
     implementation(libs.gson)
     implementation(libs.retrofit)
     implementation(libs.retrofit.gson)
+    implementation(libs.play.services.location)
+    implementation(libs.androidx.datastore.preferences)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
