@@ -7,7 +7,7 @@
 
 ## Где менять BASE_URL
 - Текущее значение задается в `app/src/main/java/com/bus/app/config/AppConfig.kt`.
-- Текущий публичный адрес сервера: `https://collector-heavily-diving-brochures.trycloudflare.com/`.
+- Сейчас используется прямой IP сервера: `http://37.200.79.56:8000/`.
 - Swagger доступен по адресу: `<BASE_URL>/docs`.
 
 ## Авторизация

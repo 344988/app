@@ -7,6 +7,7 @@ import com.bus.app.data.RouteRequest
 import com.bus.app.data.RouteResponse
 import com.bus.app.data.UserCreateRequest
 import com.bus.app.data.repository.BusRepository
+import com.bus.app.data.repository.HealthSnapshot
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -59,7 +60,7 @@ private class FakeSyncRepository(
 ) : BusRepository {
     var updateLocationCalled: Boolean = false
 
-    override suspend fun getHealth() = true
+    override suspend fun getHealthSnapshot() = HealthSnapshot(true, 50, 0)
     override suspend fun login(username: String, password: String): LoginResponse? = null
     override suspend fun getActiveRoutes(token: String): List<ActiveBus> = routes
     override suspend fun updateLocation(token: String, location: LocationUpdate): Boolean {

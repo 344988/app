@@ -11,6 +11,7 @@ import com.bus.app.data.UserCreateRequest
 import com.bus.app.data.UserDto
 import com.bus.app.data.repository.ApiBusRepository
 import com.bus.app.data.repository.BusRepository
+import com.bus.app.data.repository.HealthSnapshot
 import com.bus.app.data.session.SessionDataStore
 import com.bus.app.data.session.SessionRuntime
 import com.bus.app.domain.usecase.LoginUseCase
@@ -21,6 +22,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
+
+enum class ServerStatusLevel { GREEN, YELLOW, RED }
 
 data class AppUiState(
     val token: String? = null,
@@ -35,7 +38,10 @@ data class AppUiState(
     val routePoints: List<GeoPoint> = emptyList(),
     val travelTimeInfo: String = "Расчет...",
     val errorMessage: String? = null,
-    val apiHealthy: Boolean? = null
+    val apiHealthy: Boolean? = null,
+    val serverStatus: ServerStatusLevel = ServerStatusLevel.RED,
+    val serverPingMs: Long? = null,
+    val packetLossPercent: Int = 100
 )
 
 class AppViewModel(
@@ -145,7 +151,15 @@ class AppViewModel(
         try {
             val state = _uiState.value
             val token = state.token ?: return
-            _uiState.update { it.copy(apiHealthy = repository.getHealth()) }
+            val health = repository.getHealthSnapshot()
+            _uiState.update {
+                it.copy(
+                    apiHealthy = health.isReachable,
+                    serverStatus = health.toStatusLevel(),
+                    serverPingMs = health.avgPingMs,
+                    packetLossPercent = health.packetLossPercent
+                )
+            }
             val location = state.userLocation?.let { LocationUpdate(it.latitude, it.longitude) }
             val buses = syncActiveRoutesUseCase(
                 token = "Bearer $token",
@@ -200,5 +214,11 @@ class AppViewModel(
             _uiState.update { it.copy(errorMessage = "Ошибка сети при запуске рейса") }
             false
         }
+    }
+
+    private fun HealthSnapshot.toStatusLevel(): ServerStatusLevel {
+        if (!isReachable) return ServerStatusLevel.RED
+        if ((avgPingMs != null && avgPingMs > 800) || packetLossPercent >= 20) return ServerStatusLevel.YELLOW
+        return ServerStatusLevel.GREEN
     }
 }

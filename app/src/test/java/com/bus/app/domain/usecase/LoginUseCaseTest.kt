@@ -6,6 +6,7 @@ import com.bus.app.data.RouteRequest
 import com.bus.app.data.RouteResponse
 import com.bus.app.data.UserCreateRequest
 import com.bus.app.data.repository.BusRepository
+import com.bus.app.data.repository.HealthSnapshot
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -41,7 +42,7 @@ class LoginUseCaseTest {
 private class FakeBusRepository(
     private val loginResponse: LoginResponse?
 ) : BusRepository {
-    override suspend fun getHealth() = true
+    override suspend fun getHealthSnapshot() = HealthSnapshot(true, 50, 0)
     override suspend fun login(username: String, password: String): LoginResponse? = loginResponse
     override suspend fun getActiveRoutes(token: String) = emptyList<com.bus.app.data.ActiveBus>()
     override suspend fun updateLocation(token: String, location: LocationUpdate) = true

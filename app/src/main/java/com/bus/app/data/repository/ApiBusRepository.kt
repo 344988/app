@@ -10,11 +10,35 @@ import com.bus.app.data.RouteResponse
 import com.bus.app.data.UserCreateRequest
 import com.bus.app.data.UserDto
 import kotlinx.coroutines.delay
+import kotlin.system.measureTimeMillis
 
 class ApiBusRepository : BusRepository {
-    override suspend fun getHealth(): Boolean {
-        val response = retryWithBackoff { ApiClient.api.health() }
-        return response.isSuccessful
+    override suspend fun getHealthSnapshot(): HealthSnapshot {
+        val probes = 3
+        var okCount = 0
+        var totalPing = 0L
+        repeat(probes) {
+            try {
+                var responseCode = 0
+                val ping = measureTimeMillis {
+                    responseCode = ApiClient.api.health().code()
+                }
+                if (responseCode in 200..299) {
+                    okCount++
+                    totalPing += ping
+                }
+            } catch (_: Exception) {
+                // ignore failed probe
+            }
+        }
+
+        val lossPercent = ((probes - okCount) * 100) / probes
+        val avgPing = if (okCount > 0) totalPing / okCount else null
+        return HealthSnapshot(
+            isReachable = okCount > 0,
+            avgPingMs = avgPing,
+            packetLossPercent = lossPercent
+        )
     }
 
     override suspend fun login(username: String, password: String): LoginResponse? {

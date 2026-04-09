@@ -9,8 +9,14 @@ import com.bus.app.data.RouteResponse
 import com.bus.app.data.UserCreateRequest
 import com.bus.app.data.UserDto
 
+data class HealthSnapshot(
+    val isReachable: Boolean,
+    val avgPingMs: Long?,
+    val packetLossPercent: Int
+)
+
 interface BusRepository {
-    suspend fun getHealth(): Boolean
+    suspend fun getHealthSnapshot(): HealthSnapshot
     suspend fun login(username: String, password: String): LoginResponse?
     suspend fun getActiveRoutes(token: String): List<ActiveBus>?
     suspend fun updateLocation(token: String, location: LocationUpdate): Boolean

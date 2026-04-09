@@ -260,6 +260,31 @@ fun MainMapScreen(navController: NavController, appViewModel: AppViewModel) {
         IconButton(onClick = { showMenu = !showMenu }, modifier = Modifier.padding(top = 40.dp, start = 16.dp).background(Color(0xFF0A1024).copy(0.8f), RoundedCornerShape(8.dp))) {
             Icon(Icons.Default.Menu, null, tint = Color.White)
         }
+        val statusColor = when (uiState.serverStatus) {
+            ServerStatusLevel.GREEN -> Color(0xFF00E676)
+            ServerStatusLevel.YELLOW -> Color(0xFFFFEA00)
+            ServerStatusLevel.RED -> Color(0xFFFF5252)
+        }
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 48.dp, end = 16.dp)
+                .background(Color(0xFF0A1024).copy(0.85f), RoundedCornerShape(10.dp))
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .background(statusColor, RoundedCornerShape(99.dp))
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "Сервер ${uiState.serverPingMs?.let { "${it}мс" } ?: "--"} / loss ${uiState.packetLossPercent}%",
+                color = Color.White,
+                fontSize = 11.sp
+            )
+        }
         if (showMenu) {
             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(0.5f)).clickable { showMenu = false }) {
                 Column(modifier = Modifier.width(260.dp).fillMaxSize().background(Color(0xFF050816)).padding(24.dp).clickable(enabled=false){}) {
