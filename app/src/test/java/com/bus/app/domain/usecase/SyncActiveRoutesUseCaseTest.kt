@@ -1,6 +1,7 @@
 package com.bus.app.domain.usecase
 
 import com.bus.app.data.ActiveBus
+import com.bus.app.data.Company
 import com.bus.app.data.LocationUpdate
 import com.bus.app.data.LoginResponse
 import com.bus.app.data.RouteRequest
@@ -68,6 +69,8 @@ private class FakeSyncRepository(
         return true
     }
     override suspend fun startRoute(token: String, route: RouteRequest): RouteResponse? = null
+    override suspend fun getCompanies(token: String): List<Company> = emptyList()
+    override suspend fun createCompany(token: String, name: String): Boolean = true
     override suspend fun getUsers(token: String) = emptyList<com.bus.app.data.UserDto>()
     override suspend fun createUser(token: String, request: UserCreateRequest) = true
 }

@@ -5,6 +5,7 @@ import com.bus.app.data.LoginResponse
 import com.bus.app.data.RouteRequest
 import com.bus.app.data.RouteResponse
 import com.bus.app.data.UserCreateRequest
+import com.bus.app.data.Company
 import com.bus.app.data.repository.BusRepository
 import com.bus.app.data.repository.HealthSnapshot
 import kotlinx.coroutines.runBlocking
@@ -47,6 +48,8 @@ private class FakeBusRepository(
     override suspend fun getActiveRoutes(token: String) = emptyList<com.bus.app.data.ActiveBus>()
     override suspend fun updateLocation(token: String, location: LocationUpdate) = true
     override suspend fun startRoute(token: String, route: RouteRequest): RouteResponse? = null
+    override suspend fun getCompanies(token: String): List<Company> = emptyList()
+    override suspend fun createCompany(token: String, name: String): Boolean = true
     override suspend fun getUsers(token: String) = emptyList<com.bus.app.data.UserDto>()
     override suspend fun createUser(token: String, request: UserCreateRequest) = true
 }
