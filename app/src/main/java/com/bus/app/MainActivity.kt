@@ -78,6 +78,19 @@ private val OSM_HTTPS_TILE_SOURCE = XYTileSource(
     arrayOf("https://tile.openstreetmap.org/")
 )
 
+private val LOCAL_STOPS_FALLBACK = listOf(
+    BusStop("Луговая", GeoPoint(43.1137, 131.9382)),
+    BusStop("Центр", GeoPoint(43.1165, 131.8855)),
+    BusStop("Площадь Борцов Революции", GeoPoint(43.1159, 131.8852)),
+    BusStop("Ж/д вокзал", GeoPoint(43.1114, 131.8735)),
+    BusStop("Вторая Речка", GeoPoint(43.1688, 131.9322)),
+    BusStop("Некрасовская", GeoPoint(43.1303, 131.9100)),
+    BusStop("Балягина", GeoPoint(43.1267, 131.9194)),
+    BusStop("Чуркин", GeoPoint(43.0960, 131.9002)),
+    BusStop("Маяк", GeoPoint(43.0988, 131.8578)),
+    BusStop("Семеновская", GeoPoint(43.1170, 131.8825))
+)
+
 data class BusStop(val name: String, val location: GeoPoint)
 
 class MainActivity : ComponentActivity() {
@@ -377,7 +390,7 @@ fun AdminPanelScreen(navController: NavController, appViewModel: AppViewModel) {
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF050816)).padding(24.dp).verticalScroll(scroll)) {
         Text("Админ-панель", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(24.dp)); Text("CRUD компаний недоступен в текущей версии API", color = Color(0xFFFFEA00), fontSize = 12.sp)
+        Spacer(modifier = Modifier.height(24.dp)); Text("CRUD компаний недоступен: backend не отдает /admin/companies", color = Color(0xFFFFEA00), fontSize = 12.sp)
         Spacer(modifier = Modifier.height(24.dp)); Text("Пользователь", color = Color(0xFF00F5FF))
         NeonTextField(newUserLogin, { newUserLogin = it }, "Логин")
         NeonTextField(newUserPass, { newUserPass = it }, "Пароль")
@@ -478,8 +491,15 @@ fun SearchableStopField(label: String, query: String, onQueryChange: (String) ->
                 }
             } catch (_: Exception) {
                 withContext(Dispatchers.Main) {
-                    results = emptyList()
-                    errorMessage = "Ошибка сети при поиске остановок."
+                    val fallback = LOCAL_STOPS_FALLBACK.filter {
+                        it.name.contains(query, ignoreCase = true)
+                    }
+                    results = fallback
+                    errorMessage = if (fallback.isEmpty()) {
+                        "Ошибка сети при поиске остановок."
+                    } else {
+                        "Сеть недоступна. Показаны локальные остановки."
+                    }
                 }
             }
         }
