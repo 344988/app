@@ -12,8 +12,6 @@ import java.util.concurrent.TimeUnit
 import org.osmdroid.util.GeoPoint
 
 // --- МОДЕЛИ ДАННЫХ ---
-data class Company(val id: Int, val name: String)
-
 data class BusStop(val name: String, val location: GeoPoint)
 
 data class UserDto(
@@ -86,12 +84,6 @@ interface BusApi {
 
     @POST("/route/start")
     suspend fun startRoute(@Header("Authorization") token: String, @Body route: RouteRequest): Response<RouteResponse>
-
-    @GET("/admin/companies")
-    suspend fun getCompanies(@Header("Authorization") token: String): Response<List<Company>>
-
-    @POST("/admin/companies")
-    suspend fun createCompany(@Header("Authorization") token: String, @Body name: Map<String, String>): Response<Unit>
 
     @GET("/admin/users")
     suspend fun getUsers(@Header("Authorization") token: String): Response<List<UserDto>>
