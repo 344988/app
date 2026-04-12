@@ -10,6 +10,7 @@ import com.bus.app.data.RouteResponse
 import com.bus.app.data.UserCreateRequest
 import com.bus.app.data.UserDto
 import kotlinx.coroutines.delay
+import retrofit2.Response
 import kotlin.system.measureTimeMillis
 
 class ApiBusRepository : BusRepository {
@@ -61,12 +62,14 @@ class ApiBusRepository : BusRepository {
     }
 
     override suspend fun getCompanies(token: String): List<Company>? {
-        val response = retryWithBackoff { ApiClient.api.getCompanies(token) }
+        val response: Response<List<Company>> = retryWithBackoff { ApiClient.api.getCompanies(token) }
         return if (response.isSuccessful) response.body() else null
     }
 
     override suspend fun createCompany(token: String, name: String): Boolean {
-        return retryWithBackoff { ApiClient.api.createCompany(token, mapOf("name" to name)) }.isSuccessful
+        val response: Response<Unit> =
+            retryWithBackoff { ApiClient.api.createCompany(token, mapOf("name" to name)) }
+        return response.isSuccessful
     }
 
     override suspend fun getUsers(token: String): List<UserDto>? {
