@@ -373,6 +373,10 @@ fun MainMapScreen(navController: NavController, appViewModel: AppViewModel) {
 
 @Composable
 fun AdminPanelScreen(navController: NavController, appViewModel: AppViewModel) {
+    var companies by remember { mutableStateOf<List<Company>>(emptyList()) }
+    var companiesCrudAvailable by remember { mutableStateOf(true) }
+    var newCompanyName by remember { mutableStateOf("") }
+    var selectedCompanyId by remember { mutableStateOf<Int?>(null) }
     var users by remember { mutableStateOf<List<UserDto>>(emptyList()) }
     var newUserLogin by remember { mutableStateOf("") }
     var newUserPass by remember { mutableStateOf("") }
@@ -384,13 +388,58 @@ fun AdminPanelScreen(navController: NavController, appViewModel: AppViewModel) {
     fun refreshData() {
         scope.launch {
             users = appViewModel.getAdminData()
+            val loadedCompanies = appViewModel.getCompanies()
+            companiesCrudAvailable = loadedCompanies != null
+            companies = loadedCompanies ?: emptyList()
+            if (selectedCompanyId == null) {
+                selectedCompanyId = companies.firstOrNull()?.id
+            }
         }
     }
     LaunchedEffect(Unit) { refreshData() }
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF050816)).padding(24.dp).verticalScroll(scroll)) {
         Text("Админ-панель", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(24.dp)); Text("CRUD компаний недоступен: backend не отдает /admin/companies", color = Color(0xFFFFEA00), fontSize = 12.sp)
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("Компании", color = Color(0xFF00F5FF))
+        if (companiesCrudAvailable) {
+            NeonTextField(newCompanyName, { newCompanyName = it }, "Название компании")
+            Button(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                onClick = {
+                    scope.launch {
+                        val companyName = newCompanyName.trim()
+                        if (companyName.isBlank()) {
+                            Toast.makeText(context, "Введите название компании", Toast.LENGTH_SHORT).show()
+                            return@launch
+                        }
+                        if (appViewModel.createCompany(companyName)) {
+                            Toast.makeText(context, "Компания создана", Toast.LENGTH_SHORT).show()
+                            newCompanyName = ""
+                            refreshData()
+                        } else {
+                            Toast.makeText(context, "Ошибка создания компании", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            ) { Text("Создать компанию") }
+            Spacer(modifier = Modifier.height(12.dp))
+            companies.forEach { company ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { selectedCompanyId = company.id }.padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(selectedCompanyId == company.id, { selectedCompanyId = company.id })
+                    Text(company.name, color = Color.White)
+                }
+            }
+        } else {
+            Text(
+                "CRUD компаний временно недоступен: endpoint /admin/companies не отвечает.",
+                color = Color(0xFFFFEA00),
+                fontSize = 12.sp
+            )
+        }
         Spacer(modifier = Modifier.height(24.dp)); Text("Пользователь", color = Color(0xFF00F5FF))
         NeonTextField(newUserLogin, { newUserLogin = it }, "Логин")
         NeonTextField(newUserPass, { newUserPass = it }, "Пароль")
@@ -400,7 +449,11 @@ fun AdminPanelScreen(navController: NavController, appViewModel: AppViewModel) {
         }
         if (newUserRole == "driver") { NeonTextField(vModel, { vModel = it }, "Марка"); NeonTextField(lPlate, { lPlate = it }, "Номер") }
         Button(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), onClick = { scope.launch {
-            val req = UserCreateRequest(newUserLogin, newUserPass, newUserRole, null, vModel, lPlate)
+            if (companiesCrudAvailable && selectedCompanyId == null) {
+                Toast.makeText(context, "Выберите компанию", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val req = UserCreateRequest(newUserLogin, newUserPass, newUserRole, selectedCompanyId, vModel, lPlate)
             if (appViewModel.createUser(req)) { Toast.makeText(context, "Пользователь создан", Toast.LENGTH_SHORT).show(); newUserLogin = ""; newUserPass = ""; refreshData() }
             else { Toast.makeText(context, "Ошибка", Toast.LENGTH_SHORT).show() }
         } }) { Text("Создать пользователя") }
