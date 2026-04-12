@@ -1,5 +1,6 @@
 package com.bus.app.data
 
+import com.bus.app.config.AppConfig
 import com.google.gson.annotations.SerializedName
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -11,8 +12,6 @@ import java.util.concurrent.TimeUnit
 import org.osmdroid.util.GeoPoint
 
 // --- МОДЕЛИ ДАННЫХ ---
-data class Company(val id: Int, val name: String)
-
 data class BusStop(val name: String, val location: GeoPoint)
 
 data class UserDto(
@@ -60,16 +59,22 @@ data class UserCreateRequest(
     val login: String,
     val password: String,
     val role: String,
-    @SerializedName("company_id") val companyId: Int,
+    @SerializedName("company_id") val companyId: Int? = null,
     @SerializedName("vehicle_model") val vehicleModel: String? = null,
     @SerializedName("license_plate") val licensePlate: String? = null
 )
 
 // --- API ИНТЕРФЕЙС ---
 interface BusApi {
+    @GET("/health")
+    suspend fun health(): Response<Map<String, Any>>
+
     @FormUrlEncoded
     @POST("/auth/login")
-    suspend fun login(@Field("username") user: String, @Field("password") pass: String): Response<LoginResponse>
+    suspend fun login(
+        @Field("username") username: String,
+        @Field("password") pass: String
+    ): Response<LoginResponse>
 
     @GET("/routes/active")
     suspend fun getActiveRoutes(@Header("Authorization") token: String): Response<List<ActiveBus>>
@@ -94,12 +99,20 @@ interface BusApi {
 }
 
 object ApiClient {
-    private const val BASE_URL = "https://orientation-ahead-stroke-statutory.trycloudflare.com/"
+    private const val LOGGING_ENABLED = AppConfig.HTTP_LOGGING_ENABLED
 
-    private val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }
+    private val logging = HttpLoggingInterceptor().apply {
+        level = if (LOGGING_ENABLED) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.NONE
+    }
     
     val okHttpClient = OkHttpClient.Builder()
-        .addInterceptor(logging)
+        .apply {
+            addInterceptor(AuthInterceptor())
+            addInterceptor(UnauthorizedInterceptor())
+            if (LOGGING_ENABLED) {
+                addInterceptor(logging)
+            }
+        }
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
@@ -107,7 +120,7 @@ object ApiClient {
 
     val api: BusApi by lazy {
         Retrofit.Builder()
-            .baseUrl(BASE_URL)
+            .baseUrl(AppConfig.BASE_URL)
             .addConverterFactory(GsonConverterFactory.create())
             .client(okHttpClient)
             .build()
