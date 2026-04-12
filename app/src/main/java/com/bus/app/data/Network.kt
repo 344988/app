@@ -85,12 +85,6 @@ interface BusApi {
     @POST("/route/start")
     suspend fun startRoute(@Header("Authorization") token: String, @Body route: RouteRequest): Response<RouteResponse>
 
-    @GET("/admin/companies")
-    suspend fun getCompanies(@Header("Authorization") token: String): Response<List<Company>>
-
-    @POST("/admin/companies")
-    suspend fun createCompany(@Header("Authorization") token: String, @Body name: Map<String, String>): Response<Unit>
-
     @GET("/admin/users")
     suspend fun getUsers(@Header("Authorization") token: String): Response<List<UserDto>>
 
