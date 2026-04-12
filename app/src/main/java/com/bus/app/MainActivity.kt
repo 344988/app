@@ -51,6 +51,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
@@ -432,12 +433,36 @@ fun PassengerSetupScreen(navController: NavController, appViewModel: AppViewMode
 @Composable
 fun SearchableStopField(label: String, query: String, onQueryChange: (String) -> Unit, onStopSelected: (BusStop) -> Unit) {
     var results by remember { mutableStateOf<List<BusStop>>(emptyList()) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    val nominatimClient = remember {
+        OkHttpClient.Builder()
+            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+    }
     LaunchedEffect(query) {
-        if (query.length < 3) { results = emptyList(); return@LaunchedEffect }
+        if (query.length < 3) {
+            results = emptyList()
+            errorMessage = null
+            return@LaunchedEffect
+        }
         delay(600); withContext(Dispatchers.IO) {
             try {
                 val url = "https://nominatim.openstreetmap.org/search?q=${URLEncoder.encode("$query Приморский край", "UTF-8")}&format=json&addressdetails=1&limit=5"
-                val res = ApiClient.okHttpClient.newCall(Request.Builder().url(url).header("User-Agent", "BusApp").build()).execute()
+                val res = nominatimClient.newCall(
+                    Request.Builder()
+                        .url(url)
+                        .header("User-Agent", "ServiceBusApp/1.0 (android-client)")
+                        .header("Accept", "application/json")
+                        .build()
+                ).execute()
+                if (!res.isSuccessful) {
+                    withContext(Dispatchers.Main) {
+                        results = emptyList()
+                        errorMessage = "Поиск остановок недоступен (HTTP ${res.code})."
+                    }
+                    return@withContext
+                }
                 val jsonArray = JSONArray(res.body?.string() ?: "[]")
                 val list = mutableListOf<BusStop>()
                 for (i in 0 until jsonArray.length()) {
@@ -447,14 +472,25 @@ fun SearchableStopField(label: String, query: String, onQueryChange: (String) ->
                     val fullName = if(city.isNotEmpty()) "остановка $name, г. $city" else "остановка $name"
                     list.add(BusStop(fullName, GeoPoint(obj.getDouble("lat"), obj.getDouble("lon"))))
                 }
-                withContext(Dispatchers.Main) { results = list }
-            } catch (e: Exception) {}
+                withContext(Dispatchers.Main) {
+                    results = list
+                    errorMessage = if (list.isEmpty()) "Остановки не найдены." else null
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    results = emptyList()
+                    errorMessage = "Ошибка сети при поиске остановок."
+                }
+            }
         }
     }
     Column { NeonTextField(query, onQueryChange, label)
         if (results.isNotEmpty()) { Column(Modifier.fillMaxWidth().background(Color(0xFF10192F)).border(1.dp, Color(0xFF00F5FF).copy(0.4f))) {
             results.forEach { stop -> Text(stop.name, color=Color.White, modifier=Modifier.fillMaxWidth().clickable { onStopSelected(stop); onQueryChange(stop.name); results=emptyList() }.padding(12.dp)) }
         } }
+        if (errorMessage != null) {
+            Text(errorMessage!!, color = Color(0xFFFFA0A0), fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+        }
     }
 }
 
