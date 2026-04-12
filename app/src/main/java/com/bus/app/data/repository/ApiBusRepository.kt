@@ -9,11 +9,38 @@ import com.bus.app.data.RouteRequest
 import com.bus.app.data.RouteResponse
 import com.bus.app.data.UserCreateRequest
 import com.bus.app.data.UserDto
+import com.bus.app.config.AppConfig
 import kotlinx.coroutines.delay
 import retrofit2.Response
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.http.Body
+import retrofit2.http.GET
+import retrofit2.http.Header
+import retrofit2.http.POST
 import kotlin.system.measureTimeMillis
 
 class ApiBusRepository : BusRepository {
+    private interface CompanyAdminApi {
+        @GET("/admin/companies")
+        suspend fun getCompanies(@Header("Authorization") token: String): Response<List<Company>>
+
+        @POST("/admin/companies")
+        suspend fun createCompany(
+            @Header("Authorization") token: String,
+            @Body name: Map<String, String>
+        ): Response<Unit>
+    }
+
+    private val companyAdminApi: CompanyAdminApi by lazy {
+        Retrofit.Builder()
+            .baseUrl(AppConfig.BASE_URL)
+            .addConverterFactory(GsonConverterFactory.create())
+            .client(ApiClient.okHttpClient)
+            .build()
+            .create(CompanyAdminApi::class.java)
+    }
+
     override suspend fun getHealthSnapshot(): HealthSnapshot {
         val probes = 3
         var okCount = 0
@@ -62,13 +89,13 @@ class ApiBusRepository : BusRepository {
     }
 
     override suspend fun getCompanies(token: String): List<Company>? {
-        val response: Response<List<Company>> = retryWithBackoff { ApiClient.api.getCompanies(token) }
+        val response: Response<List<Company>> = retryWithBackoff { companyAdminApi.getCompanies(token) }
         return if (response.isSuccessful) response.body() else null
     }
 
     override suspend fun createCompany(token: String, name: String): Boolean {
         val response: Response<Unit> =
-            retryWithBackoff { ApiClient.api.createCompany(token, mapOf("name" to name)) }
+            retryWithBackoff { companyAdminApi.createCompany(token, mapOf("name" to name)) }
         return response.isSuccessful
     }
 
