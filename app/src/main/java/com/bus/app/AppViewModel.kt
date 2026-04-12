@@ -187,8 +187,8 @@ class AppViewModel(
 
     suspend fun getCompanies(): List<Company>? {
         return try {
-            val token = _uiState.value.token ?: return emptyList()
-            repository.getCompanies("Bearer $token") ?: emptyList()
+            val token = _uiState.value.token ?: return emptyList<Company>()
+            repository.getCompanies("Bearer $token") ?: emptyList<Company>()
         } catch (_: Exception) {
             null
         }
