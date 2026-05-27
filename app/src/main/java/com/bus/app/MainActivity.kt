@@ -378,6 +378,12 @@ fun AdminPanelScreen(navController: NavController, appViewModel: AppViewModel) {
     var newCompanyName by remember { mutableStateOf("") }
     var selectedCompanyId by remember { mutableStateOf<Int?>(null) }
     var users by remember { mutableStateOf<List<UserDto>>(emptyList()) }
+    var wialonAccounts by remember { mutableStateOf<List<WialonAccount>>(emptyList()) }
+    var wialonUnits by remember { mutableStateOf<List<WialonUnit>>(emptyList()) }
+    var selectedWialonAccountId by remember { mutableStateOf<Int?>(null) }
+    var wialonName by remember { mutableStateOf("") }
+    var wialonBaseUrl by remember { mutableStateOf("") }
+    var wialonToken by remember { mutableStateOf("") }
     var newUserLogin by remember { mutableStateOf("") }
     var newUserPass by remember { mutableStateOf("") }
     var newUserRole by remember { mutableStateOf("passenger") }
@@ -388,6 +394,9 @@ fun AdminPanelScreen(navController: NavController, appViewModel: AppViewModel) {
     fun refreshData() {
         scope.launch {
             users = appViewModel.getAdminData()
+            wialonAccounts = appViewModel.getWialonAccounts()
+            wialonUnits = appViewModel.getWialonUnits()
+            if (selectedWialonAccountId == null) selectedWialonAccountId = wialonAccounts.firstOrNull()?.id
             val loadedCompanies = appViewModel.getCompanies()
             companiesCrudAvailable = loadedCompanies != null
             companies = loadedCompanies ?: emptyList()
@@ -460,6 +469,67 @@ fun AdminPanelScreen(navController: NavController, appViewModel: AppViewModel) {
 
         Spacer(modifier = Modifier.height(32.dp)); Text("Список пользователей", color = Color(0xFF00F5FF))
         users.forEach { user -> Text("${user.role}: ${user.login} (${user.companyName})", color = Color.Gray, fontSize = 14.sp) }
+
+        Spacer(modifier = Modifier.height(32.dp))
+        Text("Интеграции Wialon/ГЛОНАСС", color = Color(0xFF00F5FF))
+        NeonTextField(wialonName, { wialonName = it }, "Name")
+        NeonTextField(wialonBaseUrl, { wialonBaseUrl = it }, "Base URL")
+        NeonTextField(wialonToken, { wialonToken = it }, "Token")
+        Button(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), onClick = {
+            scope.launch {
+                if (wialonName.isBlank() || wialonBaseUrl.isBlank() || wialonToken.isBlank()) {
+                    Toast.makeText(context, "Заполните name/baseUrl/token", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                if (appViewModel.createWialonAccount(wialonName, wialonBaseUrl, wialonToken)) {
+                    Toast.makeText(context, "Wialon-аккаунт сохранен", Toast.LENGTH_SHORT).show()
+                    wialonToken = ""
+                    refreshData()
+                } else {
+                    Toast.makeText(context, "Ошибка создания Wialon-аккаунта", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }) { Text("Сохранить интеграцию") }
+
+        wialonAccounts.forEach { account ->
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { selectedWialonAccountId = account.id }.padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(selectedWialonAccountId == account.id, { selectedWialonAccountId = account.id })
+                Text("${account.name} (${account.baseUrl})", color = Color.White, fontSize = 13.sp)
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(modifier = Modifier.weight(1f), onClick = {
+                scope.launch {
+                    val id = selectedWialonAccountId ?: return@launch
+                    val ok = appViewModel.testWialonAccount(id)
+                    Toast.makeText(context, if (ok) "Проверка успешна" else "Проверка неуспешна", Toast.LENGTH_SHORT).show()
+                }
+            }) { Text("Проверить") }
+            Button(modifier = Modifier.weight(1f), onClick = {
+                scope.launch {
+                    val id = selectedWialonAccountId ?: return@launch
+                    val ok = appViewModel.syncWialonUnits(id)
+                    if (ok) {
+                        Toast.makeText(context, "Синхронизация выполнена", Toast.LENGTH_SHORT).show()
+                        wialonUnits = appViewModel.getWialonUnits()
+                    } else {
+                        Toast.makeText(context, "Ошибка синхронизации", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }) { Text("Синхронизировать") }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Text("Найденные автобусы/units", color = Color(0xFF00F5FF), fontSize = 14.sp)
+        wialonUnits.forEach { unit ->
+            Text(
+                "${unit.name} ${unit.licensePlate?.let { "($it)" } ?: ""}",
+                color = Color.Gray,
+                fontSize = 13.sp
+            )
+        }
         Spacer(modifier = Modifier.height(24.dp)); Button(modifier = Modifier.fillMaxWidth(), onClick = { navController.popBackStack() }) { Text("Назад") }
     }
 }

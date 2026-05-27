@@ -9,6 +9,9 @@ import com.bus.app.data.LocationUpdate
 import com.bus.app.data.RouteRequest
 import com.bus.app.data.UserCreateRequest
 import com.bus.app.data.UserDto
+import com.bus.app.data.WialonAccount
+import com.bus.app.data.WialonAccountCreateRequest
+import com.bus.app.data.WialonUnit
 import com.bus.app.data.repository.ApiBusRepository
 import com.bus.app.data.repository.BusRepository
 import com.bus.app.data.repository.HealthSnapshot
@@ -211,6 +214,59 @@ class AppViewModel(
         } catch (_: Exception) {
             _uiState.update { it.copy(errorMessage = "Ошибка сети при создании пользователя") }
             false
+        }
+    }
+
+    suspend fun getWialonAccounts(): List<WialonAccount> {
+        return try {
+            val token = _uiState.value.token ?: return emptyList()
+            repository.getWialonAccounts("Bearer $token") ?: emptyList()
+        } catch (_: Exception) {
+            _uiState.update { it.copy(errorMessage = "Не удалось загрузить Wialon-аккаунты") }
+            emptyList()
+        }
+    }
+
+    suspend fun createWialonAccount(name: String, baseUrl: String, token: String): Boolean {
+        return try {
+            val authToken = _uiState.value.token ?: return false
+            repository.createWialonAccount(
+                token = "Bearer $authToken",
+                request = WialonAccountCreateRequest(name.trim(), baseUrl.trim(), token.trim())
+            )
+        } catch (_: Exception) {
+            _uiState.update { it.copy(errorMessage = "Ошибка при создании Wialon-аккаунта") }
+            false
+        }
+    }
+
+    suspend fun testWialonAccount(accountId: Int): Boolean {
+        return try {
+            val token = _uiState.value.token ?: return false
+            repository.testWialonAccount("Bearer $token", accountId)
+        } catch (_: Exception) {
+            _uiState.update { it.copy(errorMessage = "Ошибка проверки Wialon-аккаунта") }
+            false
+        }
+    }
+
+    suspend fun syncWialonUnits(accountId: Int): Boolean {
+        return try {
+            val token = _uiState.value.token ?: return false
+            repository.syncWialonUnits("Bearer $token", accountId)
+        } catch (_: Exception) {
+            _uiState.update { it.copy(errorMessage = "Ошибка синхронизации Wialon units") }
+            false
+        }
+    }
+
+    suspend fun getWialonUnits(): List<WialonUnit> {
+        return try {
+            val token = _uiState.value.token ?: return emptyList()
+            repository.getWialonUnits("Bearer $token") ?: emptyList()
+        } catch (_: Exception) {
+            _uiState.update { it.copy(errorMessage = "Не удалось загрузить Wialon units") }
+            emptyList()
         }
     }
 

@@ -64,6 +64,25 @@ data class UserCreateRequest(
     @SerializedName("license_plate") val licensePlate: String? = null
 )
 
+data class WialonAccount(
+    val id: Int,
+    val name: String,
+    @SerializedName("base_url") val baseUrl: String
+)
+
+data class WialonAccountCreateRequest(
+    val name: String,
+    @SerializedName("base_url") val baseUrl: String,
+    val token: String
+)
+
+data class WialonUnit(
+    val id: Int,
+    @SerializedName("external_id") val externalId: String?,
+    val name: String,
+    @SerializedName("license_plate") val licensePlate: String?
+)
+
 // --- API ИНТЕРФЕЙС ---
 interface BusApi {
     @GET("/health")
@@ -90,6 +109,30 @@ interface BusApi {
 
     @POST("/admin/users")
     suspend fun createUser(@Header("Authorization") token: String, @Body user: UserCreateRequest): Response<Unit>
+
+    @GET("/admin/wialon/accounts")
+    suspend fun getWialonAccounts(@Header("Authorization") token: String): Response<List<WialonAccount>>
+
+    @POST("/admin/wialon/accounts")
+    suspend fun createWialonAccount(
+        @Header("Authorization") token: String,
+        @Body request: WialonAccountCreateRequest
+    ): Response<Unit>
+
+    @POST("/admin/wialon/accounts/{id}/test")
+    suspend fun testWialonAccount(
+        @Header("Authorization") token: String,
+        @Path("id") accountId: Int
+    ): Response<Unit>
+
+    @POST("/admin/wialon/accounts/{id}/sync-units")
+    suspend fun syncWialonUnits(
+        @Header("Authorization") token: String,
+        @Path("id") accountId: Int
+    ): Response<Unit>
+
+    @GET("/admin/wialon/units")
+    suspend fun getWialonUnits(@Header("Authorization") token: String): Response<List<WialonUnit>>
 }
 
 object ApiClient {

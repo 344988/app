@@ -8,6 +8,9 @@ import com.bus.app.data.RouteRequest
 import com.bus.app.data.RouteResponse
 import com.bus.app.data.UserCreateRequest
 import com.bus.app.data.UserDto
+import com.bus.app.data.WialonAccount
+import com.bus.app.data.WialonAccountCreateRequest
+import com.bus.app.data.WialonUnit
 
 data class HealthSnapshot(
     val isReachable: Boolean,
@@ -25,4 +28,9 @@ interface BusRepository {
     suspend fun createCompany(token: String, name: String): Boolean
     suspend fun getUsers(token: String): List<UserDto>?
     suspend fun createUser(token: String, request: UserCreateRequest): Boolean
+    suspend fun getWialonAccounts(token: String): List<WialonAccount>?
+    suspend fun createWialonAccount(token: String, request: WialonAccountCreateRequest): Boolean
+    suspend fun testWialonAccount(token: String, accountId: Int): Boolean
+    suspend fun syncWialonUnits(token: String, accountId: Int): Boolean
+    suspend fun getWialonUnits(token: String): List<WialonUnit>?
 }

@@ -8,6 +8,9 @@ import com.bus.app.data.UserCreateRequest
 import com.bus.app.data.Company
 import com.bus.app.data.repository.BusRepository
 import com.bus.app.data.repository.HealthSnapshot
+import com.bus.app.data.WialonAccount
+import com.bus.app.data.WialonAccountCreateRequest
+import com.bus.app.data.WialonUnit
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -52,4 +55,9 @@ private class FakeBusRepository(
     override suspend fun createCompany(token: String, name: String): Boolean = true
     override suspend fun getUsers(token: String) = emptyList<com.bus.app.data.UserDto>()
     override suspend fun createUser(token: String, request: UserCreateRequest) = true
+    override suspend fun getWialonAccounts(token: String): List<WialonAccount> = emptyList()
+    override suspend fun createWialonAccount(token: String, request: WialonAccountCreateRequest): Boolean = true
+    override suspend fun testWialonAccount(token: String, accountId: Int): Boolean = true
+    override suspend fun syncWialonUnits(token: String, accountId: Int): Boolean = true
+    override suspend fun getWialonUnits(token: String): List<WialonUnit> = emptyList()
 }
