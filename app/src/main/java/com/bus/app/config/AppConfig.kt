@@ -1,6 +1,8 @@
 package com.bus.app.config
 
+import com.bus.app.BuildConfig
+
 object AppConfig {
-    const val BASE_URL = "http://37.200.79.56:8000/"
-    const val HTTP_LOGGING_ENABLED = true
+    val BASE_URL: String = BuildConfig.BASE_URL
+    val HTTP_LOGGING_ENABLED: Boolean = BuildConfig.HTTP_LOGGING_ENABLED
 }

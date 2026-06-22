@@ -136,7 +136,7 @@ interface BusApi {
 }
 
 object ApiClient {
-    private const val LOGGING_ENABLED = AppConfig.HTTP_LOGGING_ENABLED
+    private val LOGGING_ENABLED = AppConfig.HTTP_LOGGING_ENABLED
 
     private val logging = HttpLoggingInterceptor().apply {
         level = if (LOGGING_ENABLED) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.NONE
