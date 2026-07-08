@@ -2,7 +2,9 @@ package com.bus.app.data
 
 import com.bus.app.config.AppConfig
 import com.google.gson.annotations.SerializedName
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
+import okhttp3.RequestBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Response
 import retrofit2.Retrofit
@@ -10,6 +12,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
 import java.util.concurrent.TimeUnit
 import org.osmdroid.util.GeoPoint
+import com.bus.app.data.model.DefectReportDto
 import com.bus.app.data.model.DriverShiftDto
 import com.bus.app.data.model.InspectionDto
 import com.bus.app.data.model.TripDto
@@ -99,6 +102,14 @@ data class DriverInspectionCreateRequest(
     val status: String,
     val notes: String? = null,
     val type: String? = null
+)
+
+data class MechanicAssignRepairRequest(
+    val notes: String? = null
+)
+
+data class MechanicCloseDefectRequest(
+    val resolution: String? = null
 )
 
 data class WialonAccount(
@@ -212,6 +223,48 @@ interface BusApi {
 
     @POST("/driver/shifts/finish")
     suspend fun finishDriverShift(@Header("Authorization") token: String): Response<DriverShiftDto>
+
+    @Multipart
+    @POST("/driver/defects")
+    suspend fun createDriverDefect(
+        @Header("Authorization") token: String,
+        @Part("vehicle_id") vehicleId: RequestBody,
+        @Part("description") description: RequestBody,
+        @Part("severity") severity: RequestBody?,
+        @Part photo: MultipartBody.Part?
+    ): Response<DefectReportDto>
+
+    @GET("/driver/defects")
+    suspend fun getDriverDefects(@Header("Authorization") token: String): Response<List<DefectReportDto>>
+
+    @GET("/admin/mechanic/defects")
+    suspend fun getMechanicDefects(@Header("Authorization") token: String): Response<List<DefectReportDto>>
+
+    @POST("/admin/mechanic/defects/{defect_id}/accept")
+    suspend fun acceptMechanicDefect(
+        @Header("Authorization") token: String,
+        @Path("defect_id") defectId: Int
+    ): Response<DefectReportDto>
+
+    @POST("/admin/mechanic/defects/{defect_id}/assign-repair")
+    suspend fun assignMechanicRepair(
+        @Header("Authorization") token: String,
+        @Path("defect_id") defectId: Int,
+        @Body request: MechanicAssignRepairRequest
+    ): Response<DefectReportDto>
+
+    @POST("/admin/mechanic/defects/{defect_id}/close")
+    suspend fun closeMechanicDefect(
+        @Header("Authorization") token: String,
+        @Path("defect_id") defectId: Int,
+        @Body request: MechanicCloseDefectRequest
+    ): Response<DefectReportDto>
+
+    @GET("/admin/mechanic/vehicles/{vehicle_id}/history")
+    suspend fun getVehicleRepairHistory(
+        @Header("Authorization") token: String,
+        @Path("vehicle_id") vehicleId: Int
+    ): Response<List<DefectReportDto>>
 }
 
 object ApiClient {

@@ -1,8 +1,10 @@
 package com.bus.app
 
+import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -148,6 +150,7 @@ class MainActivity : ComponentActivity() {
                     composable("driver_setup") { DriverSetupScreen(navController, appViewModel) }
                     composable("passenger_setup") { PassengerSetupScreen(navController, appViewModel) }
                     composable("admin_panel") { AdminPanelScreen(navController, appViewModel) }
+                    composable("mechanic_panel") { MechanicPanelScreen(navController, appViewModel) }
                 }
             }
         }
@@ -362,6 +365,7 @@ fun MainMapScreen(navController: NavController, appViewModel: AppViewModel) {
                     Spacer(modifier = Modifier.height(24.dp))
                     if (uiState.userRole == "admin") MenuButton("Админ-панель", Icons.Default.Settings) { navController.navigate("admin_panel"); showMenu = false }
                     if (uiState.userRole == "driver" || uiState.userRole == "admin") MenuButton("Настроить рейс", Icons.Default.Add) { navController.navigate("driver_setup"); showMenu = false }
+                    if (uiState.userRole == "mechanic" || uiState.userRole == "admin") MenuButton("Механик", Icons.Default.Build) { navController.navigate("mechanic_panel"); showMenu = false }
                     if (uiState.userRole == "passenger" || uiState.userRole == "admin") MenuButton("Выбрать автобус", Icons.Default.Search) { navController.navigate("passenger_setup"); showMenu = false }
                     Spacer(modifier = Modifier.weight(1f))
                     MenuButton("Выйти", Icons.Default.ExitToApp) { appViewModel.logout(); navController.navigate("auth"); showMenu = false }
@@ -540,12 +544,20 @@ fun DriverSetupScreen(navController: NavController, appViewModel: AppViewModel) 
     var vehicleIdText by remember { mutableStateOf("") }
     var inspectionStatus by remember { mutableStateOf("ok") }
     var inspectionNotes by remember { mutableStateOf("") }
+    var defectVehicleIdText by remember { mutableStateOf("") }
+    var defectDescription by remember { mutableStateOf("") }
+    var defectSeverity by remember { mutableStateOf("medium") }
+    var selectedDefectPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var sName by remember { mutableStateOf("") }
     var eName by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        selectedDefectPhotoUri = uri
+    }
 
     LaunchedEffect(Unit) {
         appViewModel.loadDriverDashboard()
+        appViewModel.loadDriverDefects()
     }
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF050816)).padding(24.dp).verticalScroll(rememberScrollState())) {
@@ -609,6 +621,52 @@ fun DriverSetupScreen(navController: NavController, appViewModel: AppViewModel) 
         }
 
         Spacer(modifier = Modifier.height(20.dp))
+        Text("Дефектные карточки", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        if (uiState.defectLoading) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        uiState.defectErrorMessage?.let { message ->
+            Text(
+                if (uiState.defectOffline) "$message. Проверьте интернет." else message,
+                color = Color(0xFFFFA0A0),
+                fontSize = 13.sp
+            )
+        }
+        NeonTextField(defectVehicleIdText, { defectVehicleIdText = it.filter { ch -> ch.isDigit() } }, "ID автобуса для карточки")
+        NeonTextField(defectDescription, { defectDescription = it }, "Описание неисправности")
+        NeonTextField(defectSeverity, { defectSeverity = it }, "Критичность (low/medium/high)")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(modifier = Modifier.weight(1f), onClick = { photoPicker.launch("image/*") }) {
+                Text("Прикрепить фото")
+            }
+            Button(modifier = Modifier.weight(1f), onClick = {
+                scope.launch {
+                    val vehicleId = defectVehicleIdText.toIntOrNull() ?: uiState.driverShift?.vehicleId ?: return@launch
+                    if (defectDescription.isBlank()) return@launch
+                    if (appViewModel.createDriverDefect(vehicleId, defectDescription, defectSeverity, selectedDefectPhotoUri)) {
+                        defectVehicleIdText = ""
+                        defectDescription = ""
+                        defectSeverity = "medium"
+                        selectedDefectPhotoUri = null
+                    }
+                }
+            }) { Text("Создать карточку") }
+        }
+        selectedDefectPhotoUri?.let { Text("Фото выбрано: ${it.lastPathSegment ?: "image"}", color = Color.Gray, fontSize = 12.sp) }
+        if (uiState.driverDefects.isEmpty()) {
+            Text("Дефектных карточек пока нет", color = Color.Gray, fontSize = 13.sp)
+        } else {
+            uiState.driverDefects.forEach { defect ->
+                Text(
+                    "#${defect.id}: автобус ${defect.vehicleId}, ${defect.status}, ${defect.severity ?: "без критичности"} — ${defect.description}",
+                    color = Color.Gray,
+                    fontSize = 13.sp
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
         Text("Назначенные рейсы", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
         if (uiState.driverTrips.isEmpty()) {
             Text("Назначенных рейсов нет", color = Color.Gray, fontSize = 13.sp)
@@ -653,6 +711,108 @@ fun DriverSetupScreen(navController: NavController, appViewModel: AppViewModel) 
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
+        Button(modifier = Modifier.fillMaxWidth(), onClick = { navController.popBackStack() }) { Text("Назад") }
+    }
+}
+
+@Composable
+fun MechanicPanelScreen(navController: NavController, appViewModel: AppViewModel) {
+    val uiState by appViewModel.uiState.collectAsState()
+    var repairNotes by remember { mutableStateOf("") }
+    var closeResolution by remember { mutableStateOf("") }
+    var historyVehicleIdText by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        appViewModel.loadMechanicDefects()
+    }
+
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF050816)).padding(24.dp).verticalScroll(rememberScrollState())) {
+        Text("Панель механика", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(12.dp))
+        if (uiState.defectLoading) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        uiState.defectErrorMessage?.let { message ->
+            Text(
+                if (uiState.defectOffline) "$message. Проверьте интернет." else message,
+                color = Color(0xFFFFA0A0),
+                fontSize = 13.sp
+            )
+        }
+
+        Text("Карточки неисправностей", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        if (uiState.mechanicDefects.isEmpty()) {
+            Text("Открытых карточек нет", color = Color.Gray, fontSize = 13.sp)
+        } else {
+            uiState.mechanicDefects.forEach { defect ->
+                Card(
+                    Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { appViewModel.selectMechanicDefect(defect) },
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF10192F))
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("#${defect.id}: автобус ${defect.vehicleId} — ${defect.status}", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(defect.description, color = Color.Gray, fontSize = 12.sp)
+                        Text("Критичность: ${defect.severity ?: "—"}; создано: ${defect.createdAt ?: "—"}", color = Color.Gray, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        val selected = uiState.selectedMechanicDefect
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Выбранная карточка", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        if (selected == null) {
+            Text("Выберите карточку из списка", color = Color.Gray, fontSize = 13.sp)
+        } else {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF10192F))) {
+                Column(Modifier.padding(12.dp)) {
+                    Text("Карточка #${selected.id}", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Автобус: ${selected.vehicleId}; водитель: ${selected.driverId ?: "—"}", color = Color.Gray, fontSize = 13.sp)
+                    Text("Статус: ${selected.status}; критичность: ${selected.severity ?: "—"}", color = Color.Gray, fontSize = 13.sp)
+                    Text(selected.description, color = Color.White, fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(modifier = Modifier.fillMaxWidth(), onClick = { scope.launch { appViewModel.acceptMechanicDefect(selected.id) } }) {
+                        Text("Принять карточку")
+                    }
+                    NeonTextField(repairNotes, { repairNotes = it }, "Комментарий к ремонту")
+                    Button(modifier = Modifier.fillMaxWidth(), onClick = {
+                        scope.launch {
+                            if (appViewModel.assignMechanicRepair(selected.id, repairNotes)) repairNotes = ""
+                        }
+                    }) { Text("Назначить ремонт") }
+                    NeonTextField(closeResolution, { closeResolution = it }, "Решение / результат ремонта")
+                    Button(modifier = Modifier.fillMaxWidth(), onClick = {
+                        scope.launch {
+                            if (appViewModel.closeMechanicDefect(selected.id, closeResolution)) closeResolution = ""
+                        }
+                    }) { Text("Закрыть ремонт") }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("История ремонта автобуса", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        NeonTextField(historyVehicleIdText, { historyVehicleIdText = it.filter { ch -> ch.isDigit() } }, "ID автобуса")
+        Button(modifier = Modifier.fillMaxWidth(), onClick = {
+            scope.launch {
+                val vehicleId = historyVehicleIdText.toIntOrNull() ?: selected?.vehicleId ?: return@launch
+                appViewModel.loadVehicleRepairHistory(vehicleId)
+            }
+        }) { Text("Загрузить историю") }
+        if (uiState.vehicleRepairHistory.isEmpty()) {
+            Text("История ремонта пуста", color = Color.Gray, fontSize = 13.sp)
+        } else {
+            uiState.vehicleRepairHistory.forEach { defect ->
+                Text(
+                    "#${defect.id}: ${defect.status}, ${defect.resolvedAt ?: defect.createdAt ?: "—"} — ${defect.description}",
+                    color = Color.Gray,
+                    fontSize = 13.sp
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
         Button(modifier = Modifier.fillMaxWidth(), onClick = { navController.popBackStack() }) { Text("Назад") }
     }
 }

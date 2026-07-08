@@ -4,6 +4,8 @@ import com.bus.app.data.AuthResult
 import com.bus.app.data.CurrentUserDto
 import com.bus.app.data.DriverAcceptVehicleRequest
 import com.bus.app.data.DriverInspectionCreateRequest
+import com.bus.app.data.MechanicAssignRepairRequest
+import com.bus.app.data.MechanicCloseDefectRequest
 import com.bus.app.data.LocationUpdate
 import com.bus.app.data.LoginRequest
 import com.bus.app.data.LoginResponse
@@ -16,10 +18,13 @@ import com.bus.app.data.repository.HealthSnapshot
 import com.bus.app.data.WialonAccount
 import com.bus.app.data.WialonAccountCreateRequest
 import com.bus.app.data.WialonUnit
+import com.bus.app.data.model.DefectReport
 import com.bus.app.data.model.DriverShift
 import com.bus.app.data.model.Inspection
 import com.bus.app.data.model.Trip
 import kotlinx.coroutines.runBlocking
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -79,4 +84,17 @@ private class FakeBusRepository(
     override suspend fun startDriverTrip(token: String, tripId: Int): Trip? = null
     override suspend fun completeDriverTrip(token: String, tripId: Int): Trip? = null
     override suspend fun finishDriverShift(token: String): DriverShift? = null
+    override suspend fun createDriverDefect(
+        token: String,
+        vehicleId: RequestBody,
+        description: RequestBody,
+        severity: RequestBody?,
+        photo: MultipartBody.Part?
+    ): DefectReport? = null
+    override suspend fun getDriverDefects(token: String): List<DefectReport> = emptyList()
+    override suspend fun getMechanicDefects(token: String): List<DefectReport> = emptyList()
+    override suspend fun acceptMechanicDefect(token: String, defectId: Int): DefectReport? = null
+    override suspend fun assignMechanicRepair(token: String, defectId: Int, request: MechanicAssignRepairRequest): DefectReport? = null
+    override suspend fun closeMechanicDefect(token: String, defectId: Int, request: MechanicCloseDefectRequest): DefectReport? = null
+    override suspend fun getVehicleRepairHistory(token: String, vehicleId: Int): List<DefectReport> = emptyList()
 }

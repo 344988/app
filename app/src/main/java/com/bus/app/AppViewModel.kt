@@ -1,6 +1,7 @@
 package com.bus.app
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.bus.app.data.ActiveBus
@@ -11,6 +12,8 @@ import com.bus.app.data.CurrentUserDto
 import com.bus.app.data.DriverAcceptVehicleRequest
 import com.bus.app.data.DriverInspectionCreateRequest
 import com.bus.app.data.LocationUpdate
+import com.bus.app.data.MechanicAssignRepairRequest
+import com.bus.app.data.MechanicCloseDefectRequest
 import com.bus.app.data.RouteRequest
 import com.bus.app.data.UserCreateRequest
 import com.bus.app.data.UserDto
@@ -22,6 +25,7 @@ import com.bus.app.data.repository.BusRepository
 import com.bus.app.data.repository.HealthSnapshot
 import com.bus.app.data.session.SessionDataStore
 import com.bus.app.data.session.SessionRuntime
+import com.bus.app.data.model.DefectReport
 import com.bus.app.data.model.DriverShift
 import com.bus.app.data.model.Inspection
 import com.bus.app.data.model.Trip
@@ -32,6 +36,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.osmdroid.util.GeoPoint
 
 enum class ServerStatusLevel { GREEN, YELLOW, RED }
@@ -58,7 +66,14 @@ data class AppUiState(
     val driverInspections: List<Inspection> = emptyList(),
     val driverLoading: Boolean = false,
     val driverErrorMessage: String? = null,
-    val driverOffline: Boolean = false
+    val driverOffline: Boolean = false,
+    val driverDefects: List<DefectReport> = emptyList(),
+    val mechanicDefects: List<DefectReport> = emptyList(),
+    val selectedMechanicDefect: DefectReport? = null,
+    val vehicleRepairHistory: List<DefectReport> = emptyList(),
+    val defectLoading: Boolean = false,
+    val defectErrorMessage: String? = null,
+    val defectOffline: Boolean = false
 )
 
 class AppViewModel(
@@ -446,6 +461,164 @@ class AppViewModel(
             }
             false
         }
+    }
+
+
+    suspend fun loadDriverDefects() {
+        val token = _uiState.value.token ?: return
+        _uiState.update { it.copy(defectLoading = true, defectErrorMessage = null, defectOffline = false) }
+        try {
+            val defects = repository.getDriverDefects("Bearer $token") ?: emptyList()
+            _uiState.update {
+                it.copy(
+                    driverDefects = defects,
+                    defectLoading = false,
+                    defectErrorMessage = null,
+                    defectOffline = false
+                )
+            }
+        } catch (_: Exception) {
+            _uiState.update {
+                it.copy(
+                    defectLoading = false,
+                    defectErrorMessage = "Не удалось загрузить дефектные карточки",
+                    defectOffline = true
+                )
+            }
+        }
+    }
+
+    suspend fun createDriverDefect(
+        vehicleId: Int,
+        description: String,
+        severity: String,
+        photoUri: Uri?
+    ): Boolean {
+        val token = _uiState.value.token ?: return false
+        return runDefectAction("Не удалось создать дефектную карточку") {
+            val descriptionBody = description.toPlainRequestBody()
+            val severityBody = severity.trim().ifBlank { null }?.toPlainRequestBody()
+            val vehicleIdBody = vehicleId.toString().toPlainRequestBody()
+            val photoPart = photoUri?.toMultipartPhotoPart()
+            repository.createDriverDefect(
+                token = "Bearer $token",
+                vehicleId = vehicleIdBody,
+                description = descriptionBody,
+                severity = severityBody,
+                photo = photoPart
+            ) ?: return@runDefectAction false
+            loadDriverDefects()
+            true
+        }
+    }
+
+    suspend fun loadMechanicDefects() {
+        val token = _uiState.value.token ?: return
+        _uiState.update { it.copy(defectLoading = true, defectErrorMessage = null, defectOffline = false) }
+        try {
+            val defects = repository.getMechanicDefects("Bearer $token") ?: emptyList()
+            _uiState.update {
+                it.copy(
+                    mechanicDefects = defects,
+                    selectedMechanicDefect = defects.firstOrNull { defect -> defect.id == it.selectedMechanicDefect?.id } ?: defects.firstOrNull(),
+                    defectLoading = false,
+                    defectErrorMessage = null,
+                    defectOffline = false
+                )
+            }
+        } catch (_: Exception) {
+            _uiState.update {
+                it.copy(
+                    defectLoading = false,
+                    defectErrorMessage = "Не удалось загрузить карточки механика",
+                    defectOffline = true
+                )
+            }
+        }
+    }
+
+    fun selectMechanicDefect(defect: DefectReport) {
+        _uiState.update { it.copy(selectedMechanicDefect = defect) }
+    }
+
+    suspend fun acceptMechanicDefect(defectId: Int): Boolean {
+        val token = _uiState.value.token ?: return false
+        return runDefectAction("Не удалось принять карточку") {
+            repository.acceptMechanicDefect("Bearer $token", defectId) ?: return@runDefectAction false
+            loadMechanicDefects()
+            true
+        }
+    }
+
+    suspend fun assignMechanicRepair(defectId: Int, notes: String): Boolean {
+        val token = _uiState.value.token ?: return false
+        return runDefectAction("Не удалось назначить ремонт") {
+            repository.assignMechanicRepair(
+                "Bearer $token",
+                defectId,
+                MechanicAssignRepairRequest(notes = notes.trim().ifBlank { null })
+            ) ?: return@runDefectAction false
+            loadMechanicDefects()
+            true
+        }
+    }
+
+    suspend fun closeMechanicDefect(defectId: Int, resolution: String): Boolean {
+        val token = _uiState.value.token ?: return false
+        return runDefectAction("Не удалось закрыть ремонт") {
+            repository.closeMechanicDefect(
+                "Bearer $token",
+                defectId,
+                MechanicCloseDefectRequest(resolution = resolution.trim().ifBlank { null })
+            ) ?: return@runDefectAction false
+            loadMechanicDefects()
+            true
+        }
+    }
+
+    suspend fun loadVehicleRepairHistory(vehicleId: Int): Boolean {
+        val token = _uiState.value.token ?: return false
+        return runDefectAction("Не удалось загрузить историю ремонта") {
+            val history = repository.getVehicleRepairHistory("Bearer $token", vehicleId) ?: return@runDefectAction false
+            _uiState.update { it.copy(vehicleRepairHistory = history) }
+            true
+        }
+    }
+
+    private suspend fun runDefectAction(errorMessage: String, action: suspend () -> Boolean): Boolean {
+        _uiState.update { it.copy(defectLoading = true, defectErrorMessage = null, defectOffline = false) }
+        return try {
+            val result = action()
+            _uiState.update {
+                it.copy(
+                    defectLoading = false,
+                    defectErrorMessage = if (result) null else errorMessage,
+                    defectOffline = false
+                )
+            }
+            result
+        } catch (_: Exception) {
+            _uiState.update {
+                it.copy(
+                    defectLoading = false,
+                    defectErrorMessage = errorMessage,
+                    defectOffline = true
+                )
+            }
+            false
+        }
+    }
+
+    private fun String.toPlainRequestBody(): RequestBody =
+        toRequestBody("text/plain".toMediaTypeOrNull())
+
+    private fun Uri.toMultipartPhotoPart(): MultipartBody.Part? {
+        val resolver = getApplication<Application>().contentResolver
+        val bytes = resolver.openInputStream(this)?.use { it.readBytes() } ?: return null
+        val mediaType = (resolver.getType(this) ?: "image/jpeg").toMediaTypeOrNull()
+        val fileName = lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: "defect-photo.jpg"
+        val body = bytes.toRequestBody(mediaType)
+        return MultipartBody.Part.createFormData("photo", fileName, body)
     }
 
     suspend fun startRoute(route: RouteRequest): Boolean {

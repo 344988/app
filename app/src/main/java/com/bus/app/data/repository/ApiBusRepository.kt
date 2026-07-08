@@ -8,6 +8,8 @@ import com.bus.app.data.Company
 import com.bus.app.data.CurrentUserDto
 import com.bus.app.data.DriverAcceptVehicleRequest
 import com.bus.app.data.DriverInspectionCreateRequest
+import com.bus.app.data.MechanicAssignRepairRequest
+import com.bus.app.data.MechanicCloseDefectRequest
 import com.bus.app.data.LocationUpdate
 import com.bus.app.data.LoginRequest
 import com.bus.app.data.RouteRequest
@@ -17,12 +19,15 @@ import com.bus.app.data.UserDto
 import com.bus.app.data.WialonAccount
 import com.bus.app.data.WialonAccountCreateRequest
 import com.bus.app.data.WialonUnit
+import com.bus.app.data.model.DefectReport
 import com.bus.app.data.model.DriverShift
 import com.bus.app.data.model.Inspection
 import com.bus.app.data.model.Trip
 import com.bus.app.data.model.toDomain
 import com.bus.app.config.AppConfig
 import kotlinx.coroutines.delay
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -214,6 +219,57 @@ class ApiBusRepository : BusRepository {
     override suspend fun finishDriverShift(token: String): DriverShift? {
         val response = retryWithBackoff { ApiClient.api.finishDriverShift(token) }
         return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun createDriverDefect(
+        token: String,
+        vehicleId: RequestBody,
+        description: RequestBody,
+        severity: RequestBody?,
+        photo: MultipartBody.Part?
+    ): DefectReport? {
+        val response = retryWithBackoff {
+            ApiClient.api.createDriverDefect(token, vehicleId, description, severity, photo)
+        }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun getDriverDefects(token: String): List<DefectReport>? {
+        val response = retryWithBackoff { ApiClient.api.getDriverDefects(token) }
+        return if (response.isSuccessful) response.body()?.map { it.toDomain() } else null
+    }
+
+    override suspend fun getMechanicDefects(token: String): List<DefectReport>? {
+        val response = retryWithBackoff { ApiClient.api.getMechanicDefects(token) }
+        return if (response.isSuccessful) response.body()?.map { it.toDomain() } else null
+    }
+
+    override suspend fun acceptMechanicDefect(token: String, defectId: Int): DefectReport? {
+        val response = retryWithBackoff { ApiClient.api.acceptMechanicDefect(token, defectId) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun assignMechanicRepair(
+        token: String,
+        defectId: Int,
+        request: MechanicAssignRepairRequest
+    ): DefectReport? {
+        val response = retryWithBackoff { ApiClient.api.assignMechanicRepair(token, defectId, request) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun closeMechanicDefect(
+        token: String,
+        defectId: Int,
+        request: MechanicCloseDefectRequest
+    ): DefectReport? {
+        val response = retryWithBackoff { ApiClient.api.closeMechanicDefect(token, defectId, request) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun getVehicleRepairHistory(token: String, vehicleId: Int): List<DefectReport>? {
+        val response = retryWithBackoff { ApiClient.api.getVehicleRepairHistory(token, vehicleId) }
+        return if (response.isSuccessful) response.body()?.map { it.toDomain() } else null
     }
 
     private suspend fun <T> retryWithBackoff(

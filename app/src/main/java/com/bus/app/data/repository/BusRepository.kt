@@ -4,6 +4,8 @@ import com.bus.app.data.ActiveBus
 import com.bus.app.data.Company
 import com.bus.app.data.DriverAcceptVehicleRequest
 import com.bus.app.data.DriverInspectionCreateRequest
+import com.bus.app.data.MechanicAssignRepairRequest
+import com.bus.app.data.MechanicCloseDefectRequest
 import com.bus.app.data.LocationUpdate
 import com.bus.app.data.AuthResult
 import com.bus.app.data.CurrentUserDto
@@ -15,9 +17,12 @@ import com.bus.app.data.UserDto
 import com.bus.app.data.WialonAccount
 import com.bus.app.data.WialonAccountCreateRequest
 import com.bus.app.data.WialonUnit
+import com.bus.app.data.model.DefectReport
 import com.bus.app.data.model.DriverShift
 import com.bus.app.data.model.Inspection
 import com.bus.app.data.model.Trip
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
 
 data class HealthSnapshot(
     val isReachable: Boolean,
@@ -50,4 +55,17 @@ interface BusRepository {
     suspend fun startDriverTrip(token: String, tripId: Int): Trip?
     suspend fun completeDriverTrip(token: String, tripId: Int): Trip?
     suspend fun finishDriverShift(token: String): DriverShift?
+    suspend fun createDriverDefect(
+        token: String,
+        vehicleId: RequestBody,
+        description: RequestBody,
+        severity: RequestBody?,
+        photo: MultipartBody.Part?
+    ): DefectReport?
+    suspend fun getDriverDefects(token: String): List<DefectReport>?
+    suspend fun getMechanicDefects(token: String): List<DefectReport>?
+    suspend fun acceptMechanicDefect(token: String, defectId: Int): DefectReport?
+    suspend fun assignMechanicRepair(token: String, defectId: Int, request: MechanicAssignRepairRequest): DefectReport?
+    suspend fun closeMechanicDefect(token: String, defectId: Int, request: MechanicCloseDefectRequest): DefectReport?
+    suspend fun getVehicleRepairHistory(token: String, vehicleId: Int): List<DefectReport>?
 }
