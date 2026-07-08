@@ -4,7 +4,10 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.bus.app.data.ActiveBus
+import com.bus.app.data.AuthErrorType
+import com.bus.app.data.AuthResult
 import com.bus.app.data.Company
+import com.bus.app.data.CurrentUserDto
 import com.bus.app.data.LocationUpdate
 import com.bus.app.data.RouteRequest
 import com.bus.app.data.UserCreateRequest
@@ -62,14 +65,14 @@ class AppViewModel(
     init {
         viewModelScope.launch {
             sessionDataStore.sessionFlow.collect { session ->
-                SessionRuntime.token = session.token
-                if (!session.token.isNullOrBlank()) {
-                    _uiState.update {
-                        it.copy(
-                            token = session.token,
-                            userRole = session.role ?: "unknown",
-                            userLogin = session.login ?: ""
-                        )
+                val savedToken = session.token
+                SessionRuntime.token = savedToken
+                if (!savedToken.isNullOrBlank()) {
+                    val currentUser = repository.getCurrentUser("Bearer $savedToken")
+                    if (currentUser != null) {
+                        applyAuthenticatedUser(savedToken, currentUser)
+                    } else {
+                        logout()
                     }
                 }
             }
@@ -100,6 +103,24 @@ class AppViewModel(
         _uiState.update { AppUiState() }
     }
 
+    private fun applyAuthenticatedUser(token: String, user: CurrentUserDto) {
+        setAuthenticatedUser(
+            token = token,
+            role = user.role,
+            login = user.login,
+            companyId = user.companyId,
+            companyName = user.companyName
+        )
+    }
+
+    private fun AuthResult.Failure.toUserMessage(): String = when (type) {
+        AuthErrorType.INVALID_CREDENTIALS -> "Неверный логин или пароль"
+        AuthErrorType.UNAUTHORIZED -> "Сессия недействительна. Войдите снова"
+        AuthErrorType.RATE_LIMITED -> "Слишком много попыток входа. Попробуйте позже"
+        AuthErrorType.NETWORK -> "Нет сети или сервер недоступен"
+        AuthErrorType.SERVER -> "Ошибка сервера при входе"
+    }
+
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }
     }
@@ -125,29 +146,53 @@ class AppViewModel(
     }
 
     suspend fun login(username: String, password: String): Boolean {
-        val response = try {
-            loginUseCase(username, password)
-        } catch (_: Exception) {
-            _uiState.update { it.copy(errorMessage = "Ошибка сети при входе") }
-            null
-        } ?: return false
-        setAuthenticatedUser(
-            token = response.accessToken,
-            role = response.role,
-            login = response.login,
-            companyId = response.companyId,
-            companyName = response.companyName
-        )
-        SessionRuntime.token = response.accessToken
-        viewModelScope.launch {
-            sessionDataStore.saveSession(
-                token = response.accessToken,
-                role = response.role,
-                userId = null,
-                login = response.login
-            )
+        return when (val result = loginUseCase(username, password)) {
+            is AuthResult.Success -> completeLogin(result)
+            is AuthResult.Failure -> {
+                _uiState.update { it.copy(errorMessage = result.toUserMessage()) }
+                false
+            }
         }
-        return true
+    }
+
+    private suspend fun completeLogin(result: AuthResult.Success): Boolean {
+        val response = result.response
+        val token = response.accessToken
+        SessionRuntime.token = token
+        val currentUser = repository.getCurrentUser("Bearer $token")
+        if (currentUser != null) {
+            applyAuthenticatedUser(token, currentUser)
+            sessionDataStore.saveSession(
+                token = token,
+                role = currentUser.role,
+                userId = currentUser.id,
+                login = currentUser.login
+            )
+            return true
+        }
+
+        val fallbackRole = response.role
+        val fallbackLogin = response.login
+        if (fallbackRole != null && fallbackLogin != null) {
+            setAuthenticatedUser(
+                token = token,
+                role = fallbackRole,
+                login = fallbackLogin,
+                companyId = response.companyId,
+                companyName = response.companyName
+            )
+            sessionDataStore.saveSession(
+                token = token,
+                role = fallbackRole,
+                userId = null,
+                login = fallbackLogin
+            )
+            return true
+        }
+
+        SessionRuntime.token = null
+        _uiState.update { it.copy(errorMessage = "Не удалось получить профиль пользователя") }
+        return false
     }
 
     suspend fun refreshActiveRoutes() {

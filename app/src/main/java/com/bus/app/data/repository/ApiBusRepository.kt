@@ -2,9 +2,12 @@ package com.bus.app.data.repository
 
 import com.bus.app.data.ActiveBus
 import com.bus.app.data.ApiClient
+import com.bus.app.data.AuthErrorType
+import com.bus.app.data.AuthResult
 import com.bus.app.data.Company
+import com.bus.app.data.CurrentUserDto
 import com.bus.app.data.LocationUpdate
-import com.bus.app.data.LoginResponse
+import com.bus.app.data.LoginRequest
 import com.bus.app.data.RouteRequest
 import com.bus.app.data.RouteResponse
 import com.bus.app.data.UserCreateRequest
@@ -72,9 +75,32 @@ class ApiBusRepository : BusRepository {
         )
     }
 
-    override suspend fun login(username: String, password: String): LoginResponse? {
-        val response = retryWithBackoff { ApiClient.api.login(username = username, pass = password) }
-        return if (response.isSuccessful) response.body() else null
+    override suspend fun login(request: LoginRequest): AuthResult {
+        return try {
+            val response = retryWithBackoff {
+                ApiClient.api.login(username = request.username, pass = request.password)
+            }
+            when {
+                response.isSuccessful -> response.body()?.let(AuthResult::Success)
+                    ?: AuthResult.Failure(AuthErrorType.SERVER, response.code())
+                response.code() == 401 || response.code() == 400 || response.code() == 422 ->
+                    AuthResult.Failure(AuthErrorType.INVALID_CREDENTIALS, response.code())
+                response.code() == 429 -> AuthResult.Failure(AuthErrorType.RATE_LIMITED, response.code())
+                response.code() >= 500 -> AuthResult.Failure(AuthErrorType.SERVER, response.code())
+                else -> AuthResult.Failure(AuthErrorType.SERVER, response.code())
+            }
+        } catch (_: Exception) {
+            AuthResult.Failure(AuthErrorType.NETWORK)
+        }
+    }
+
+    override suspend fun getCurrentUser(token: String): CurrentUserDto? {
+        return try {
+            val response = retryWithBackoff { ApiClient.api.getCurrentUser(token) }
+            if (response.isSuccessful) response.body() else null
+        } catch (_: Exception) {
+            null
+        }
     }
 
     override suspend fun getActiveRoutes(token: String): List<ActiveBus>? {

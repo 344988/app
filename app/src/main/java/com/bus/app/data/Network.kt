@@ -23,13 +23,36 @@ data class UserDto(
     @SerializedName("license_plate") val licensePlate: String? = null
 )
 
+data class LoginRequest(
+    val username: String,
+    val password: String
+)
+
 data class LoginResponse(
     @SerializedName("access_token") val accessToken: String,
-    val role: String,
-    val login: String,
-    @SerializedName("company_id") val companyId: Int?,
-    @SerializedName("company_name") val companyName: String?
+    @SerializedName("token_type") val tokenType: String? = null,
+    val role: String? = null,
+    val login: String? = null,
+    @SerializedName("company_id") val companyId: Int? = null,
+    @SerializedName("company_name") val companyName: String? = null
 )
+
+data class CurrentUserDto(
+    val id: Int? = null,
+    val login: String,
+    val role: String,
+    @SerializedName("company_id") val companyId: Int? = null,
+    @SerializedName("company_name") val companyName: String? = null,
+    @SerializedName("vehicle_model") val vehicleModel: String? = null,
+    @SerializedName("license_plate") val licensePlate: String? = null
+)
+
+enum class AuthErrorType { INVALID_CREDENTIALS, UNAUTHORIZED, RATE_LIMITED, NETWORK, SERVER }
+
+sealed class AuthResult {
+    data class Success(val response: LoginResponse) : AuthResult()
+    data class Failure(val type: AuthErrorType, val statusCode: Int? = null) : AuthResult()
+}
 
 data class RouteRequest(
     @SerializedName("start_name") val startName: String,
@@ -94,6 +117,9 @@ interface BusApi {
         @Field("username") username: String,
         @Field("password") pass: String
     ): Response<LoginResponse>
+
+    @GET("/auth/me")
+    suspend fun getCurrentUser(@Header("Authorization") token: String): Response<CurrentUserDto>
 
     @GET("/routes/active")
     suspend fun getActiveRoutes(@Header("Authorization") token: String): Response<List<ActiveBus>>

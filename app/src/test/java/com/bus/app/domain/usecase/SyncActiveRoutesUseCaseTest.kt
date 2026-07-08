@@ -1,9 +1,11 @@
 package com.bus.app.domain.usecase
 
 import com.bus.app.data.ActiveBus
+import com.bus.app.data.AuthResult
+import com.bus.app.data.CurrentUserDto
 import com.bus.app.data.Company
 import com.bus.app.data.LocationUpdate
-import com.bus.app.data.LoginResponse
+import com.bus.app.data.LoginRequest
 import com.bus.app.data.RouteRequest
 import com.bus.app.data.RouteResponse
 import com.bus.app.data.UserCreateRequest
@@ -65,7 +67,8 @@ private class FakeSyncRepository(
     var updateLocationCalled: Boolean = false
 
     override suspend fun getHealthSnapshot() = HealthSnapshot(true, 50, 0)
-    override suspend fun login(username: String, password: String): LoginResponse? = null
+    override suspend fun login(request: LoginRequest): AuthResult = AuthResult.Failure(com.bus.app.data.AuthErrorType.INVALID_CREDENTIALS, 401)
+    override suspend fun getCurrentUser(token: String): CurrentUserDto? = null
     override suspend fun getActiveRoutes(token: String): List<ActiveBus> = routes
     override suspend fun updateLocation(token: String, location: LocationUpdate): Boolean {
         updateLocationCalled = true

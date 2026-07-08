@@ -251,7 +251,7 @@ fun AuthScreen(navController: NavController, appViewModel: AppViewModel) {
                     try {
                         if (appViewModel.login(login.trim(), password.trim())) {
                             navController.navigate("main_map")
-                        } else { Toast.makeText(context, "Неверный вход", Toast.LENGTH_SHORT).show() }
+                        }
                     } catch (e: Exception) { Toast.makeText(context, "Сервер недоступен", Toast.LENGTH_SHORT).show() }
                 }
             }
