@@ -6,6 +6,8 @@ import com.bus.app.data.AuthErrorType
 import com.bus.app.data.AuthResult
 import com.bus.app.data.Company
 import com.bus.app.data.CurrentUserDto
+import com.bus.app.data.DriverAcceptVehicleRequest
+import com.bus.app.data.DriverInspectionCreateRequest
 import com.bus.app.data.LocationUpdate
 import com.bus.app.data.LoginRequest
 import com.bus.app.data.RouteRequest
@@ -15,6 +17,10 @@ import com.bus.app.data.UserDto
 import com.bus.app.data.WialonAccount
 import com.bus.app.data.WialonAccountCreateRequest
 import com.bus.app.data.WialonUnit
+import com.bus.app.data.model.DriverShift
+import com.bus.app.data.model.Inspection
+import com.bus.app.data.model.Trip
+import com.bus.app.data.model.toDomain
 import com.bus.app.config.AppConfig
 import kotlinx.coroutines.delay
 import retrofit2.Response
@@ -157,6 +163,57 @@ class ApiBusRepository : BusRepository {
     override suspend fun getWialonUnits(token: String): List<WialonUnit>? {
         val response = retryWithBackoff { ApiClient.api.getWialonUnits(token) }
         return if (response.isSuccessful) response.body() else null
+    }
+
+    override suspend fun getCurrentDriverShift(token: String): DriverShift? {
+        val response = retryWithBackoff { ApiClient.api.getCurrentDriverShift(token) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun startDriverShift(token: String): DriverShift? {
+        val response = retryWithBackoff { ApiClient.api.startDriverShift(token) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun acceptDriverVehicle(
+        token: String,
+        request: DriverAcceptVehicleRequest
+    ): DriverShift? {
+        val response = retryWithBackoff { ApiClient.api.acceptDriverVehicle(token, request) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun createDriverInspection(
+        token: String,
+        request: DriverInspectionCreateRequest
+    ): Inspection? {
+        val response = retryWithBackoff { ApiClient.api.createDriverInspection(token, request) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun getDriverInspections(token: String): List<Inspection>? {
+        val response = retryWithBackoff { ApiClient.api.getDriverInspections(token) }
+        return if (response.isSuccessful) response.body()?.map { it.toDomain() } else null
+    }
+
+    override suspend fun getDriverTrips(token: String): List<Trip>? {
+        val response = retryWithBackoff { ApiClient.api.getDriverTrips(token) }
+        return if (response.isSuccessful) response.body()?.map { it.toDomain() } else null
+    }
+
+    override suspend fun startDriverTrip(token: String, tripId: Int): Trip? {
+        val response = retryWithBackoff { ApiClient.api.startDriverTrip(token, tripId) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun completeDriverTrip(token: String, tripId: Int): Trip? {
+        val response = retryWithBackoff { ApiClient.api.completeDriverTrip(token, tripId) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun finishDriverShift(token: String): DriverShift? {
+        val response = retryWithBackoff { ApiClient.api.finishDriverShift(token) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
     }
 
     private suspend fun <T> retryWithBackoff(

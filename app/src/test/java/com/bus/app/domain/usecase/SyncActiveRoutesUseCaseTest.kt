@@ -3,6 +3,8 @@ package com.bus.app.domain.usecase
 import com.bus.app.data.ActiveBus
 import com.bus.app.data.AuthResult
 import com.bus.app.data.CurrentUserDto
+import com.bus.app.data.DriverAcceptVehicleRequest
+import com.bus.app.data.DriverInspectionCreateRequest
 import com.bus.app.data.Company
 import com.bus.app.data.LocationUpdate
 import com.bus.app.data.LoginRequest
@@ -12,6 +14,9 @@ import com.bus.app.data.UserCreateRequest
 import com.bus.app.data.WialonAccount
 import com.bus.app.data.WialonAccountCreateRequest
 import com.bus.app.data.WialonUnit
+import com.bus.app.data.model.DriverShift
+import com.bus.app.data.model.Inspection
+import com.bus.app.data.model.Trip
 import com.bus.app.data.repository.BusRepository
 import com.bus.app.data.repository.HealthSnapshot
 import kotlinx.coroutines.runBlocking
@@ -84,4 +89,13 @@ private class FakeSyncRepository(
     override suspend fun testWialonAccount(token: String, accountId: Int): Boolean = true
     override suspend fun syncWialonUnits(token: String, accountId: Int): Boolean = true
     override suspend fun getWialonUnits(token: String): List<WialonUnit> = emptyList()
+    override suspend fun getCurrentDriverShift(token: String): DriverShift? = null
+    override suspend fun startDriverShift(token: String): DriverShift? = null
+    override suspend fun acceptDriverVehicle(token: String, request: DriverAcceptVehicleRequest): DriverShift? = null
+    override suspend fun createDriverInspection(token: String, request: DriverInspectionCreateRequest): Inspection? = null
+    override suspend fun getDriverInspections(token: String): List<Inspection> = emptyList()
+    override suspend fun getDriverTrips(token: String): List<Trip> = emptyList()
+    override suspend fun startDriverTrip(token: String, tripId: Int): Trip? = null
+    override suspend fun completeDriverTrip(token: String, tripId: Int): Trip? = null
+    override suspend fun finishDriverShift(token: String): DriverShift? = null
 }

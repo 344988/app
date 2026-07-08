@@ -8,6 +8,8 @@ import com.bus.app.data.AuthErrorType
 import com.bus.app.data.AuthResult
 import com.bus.app.data.Company
 import com.bus.app.data.CurrentUserDto
+import com.bus.app.data.DriverAcceptVehicleRequest
+import com.bus.app.data.DriverInspectionCreateRequest
 import com.bus.app.data.LocationUpdate
 import com.bus.app.data.RouteRequest
 import com.bus.app.data.UserCreateRequest
@@ -20,6 +22,9 @@ import com.bus.app.data.repository.BusRepository
 import com.bus.app.data.repository.HealthSnapshot
 import com.bus.app.data.session.SessionDataStore
 import com.bus.app.data.session.SessionRuntime
+import com.bus.app.data.model.DriverShift
+import com.bus.app.data.model.Inspection
+import com.bus.app.data.model.Trip
 import com.bus.app.domain.usecase.LoginUseCase
 import com.bus.app.domain.usecase.SyncActiveRoutesUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,7 +52,13 @@ data class AppUiState(
     val apiHealthy: Boolean? = null,
     val serverStatus: ServerStatusLevel = ServerStatusLevel.RED,
     val serverPingMs: Long? = null,
-    val packetLossPercent: Int = 100
+    val packetLossPercent: Int = 100,
+    val driverShift: DriverShift? = null,
+    val driverTrips: List<Trip> = emptyList(),
+    val driverInspections: List<Inspection> = emptyList(),
+    val driverLoading: Boolean = false,
+    val driverErrorMessage: String? = null,
+    val driverOffline: Boolean = false
 )
 
 class AppViewModel(
@@ -312,6 +323,128 @@ class AppViewModel(
         } catch (_: Exception) {
             _uiState.update { it.copy(errorMessage = "Не удалось загрузить Wialon units") }
             emptyList()
+        }
+    }
+
+
+    suspend fun loadDriverDashboard() {
+        val token = _uiState.value.token ?: return
+        _uiState.update { it.copy(driverLoading = true, driverErrorMessage = null, driverOffline = false) }
+        try {
+            val auth = "Bearer $token"
+            val shift = repository.getCurrentDriverShift(auth)
+            val trips = repository.getDriverTrips(auth) ?: emptyList()
+            val inspections = repository.getDriverInspections(auth) ?: emptyList()
+            _uiState.update {
+                it.copy(
+                    driverShift = shift,
+                    driverTrips = trips,
+                    driverInspections = inspections,
+                    driverLoading = false,
+                    driverErrorMessage = null,
+                    driverOffline = false
+                )
+            }
+        } catch (_: Exception) {
+            _uiState.update {
+                it.copy(
+                    driverLoading = false,
+                    driverErrorMessage = "Не удалось загрузить данные водителя",
+                    driverOffline = true
+                )
+            }
+        }
+    }
+
+    suspend fun startDriverShift(): Boolean {
+        val token = _uiState.value.token ?: return false
+        return runDriverAction("Не удалось начать смену") {
+            val shift = repository.startDriverShift("Bearer $token") ?: return@runDriverAction false
+            _uiState.update { it.copy(driverShift = shift) }
+            loadDriverDashboard()
+            true
+        }
+    }
+
+    suspend fun acceptDriverVehicle(vehicleId: Int): Boolean {
+        val token = _uiState.value.token ?: return false
+        return runDriverAction("Не удалось принять автобус") {
+            val shift = repository.acceptDriverVehicle(
+                "Bearer $token",
+                DriverAcceptVehicleRequest(vehicleId = vehicleId)
+            ) ?: return@runDriverAction false
+            _uiState.update { it.copy(driverShift = shift) }
+            loadDriverDashboard()
+            true
+        }
+    }
+
+    suspend fun submitDriverInspection(vehicleId: Int, status: String, notes: String): Boolean {
+        val token = _uiState.value.token ?: return false
+        return runDriverAction("Не удалось отправить осмотр") {
+            repository.createDriverInspection(
+                "Bearer $token",
+                DriverInspectionCreateRequest(
+                    vehicleId = vehicleId,
+                    status = status.trim(),
+                    notes = notes.trim().ifBlank { null },
+                    type = "pre_trip"
+                )
+            ) ?: return@runDriverAction false
+            loadDriverDashboard()
+            true
+        }
+    }
+
+    suspend fun startDriverTrip(tripId: Int): Boolean {
+        val token = _uiState.value.token ?: return false
+        return runDriverAction("Не удалось начать рейс") {
+            repository.startDriverTrip("Bearer $token", tripId) ?: return@runDriverAction false
+            loadDriverDashboard()
+            true
+        }
+    }
+
+    suspend fun completeDriverTrip(tripId: Int): Boolean {
+        val token = _uiState.value.token ?: return false
+        return runDriverAction("Не удалось завершить рейс") {
+            repository.completeDriverTrip("Bearer $token", tripId) ?: return@runDriverAction false
+            loadDriverDashboard()
+            true
+        }
+    }
+
+    suspend fun finishDriverShift(): Boolean {
+        val token = _uiState.value.token ?: return false
+        return runDriverAction("Не удалось завершить смену") {
+            val shift = repository.finishDriverShift("Bearer $token") ?: return@runDriverAction false
+            _uiState.update { it.copy(driverShift = shift) }
+            loadDriverDashboard()
+            true
+        }
+    }
+
+    private suspend fun runDriverAction(errorMessage: String, action: suspend () -> Boolean): Boolean {
+        _uiState.update { it.copy(driverLoading = true, driverErrorMessage = null, driverOffline = false) }
+        return try {
+            val result = action()
+            _uiState.update {
+                it.copy(
+                    driverLoading = false,
+                    driverErrorMessage = if (result) null else errorMessage,
+                    driverOffline = false
+                )
+            }
+            result
+        } catch (_: Exception) {
+            _uiState.update {
+                it.copy(
+                    driverLoading = false,
+                    driverErrorMessage = errorMessage,
+                    driverOffline = true
+                )
+            }
+            false
         }
     }
 

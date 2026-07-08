@@ -10,6 +10,9 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
 import java.util.concurrent.TimeUnit
 import org.osmdroid.util.GeoPoint
+import com.bus.app.data.model.DriverShiftDto
+import com.bus.app.data.model.InspectionDto
+import com.bus.app.data.model.TripDto
 
 // --- МОДЕЛИ ДАННЫХ ---
 data class BusStop(val name: String, val location: GeoPoint)
@@ -87,6 +90,17 @@ data class UserCreateRequest(
     @SerializedName("license_plate") val licensePlate: String? = null
 )
 
+data class DriverAcceptVehicleRequest(
+    @SerializedName("vehicle_id") val vehicleId: Int
+)
+
+data class DriverInspectionCreateRequest(
+    @SerializedName("vehicle_id") val vehicleId: Int,
+    val status: String,
+    val notes: String? = null,
+    val type: String? = null
+)
+
 data class WialonAccount(
     val id: Int,
     val name: String,
@@ -159,6 +173,45 @@ interface BusApi {
 
     @GET("/admin/wialon/units")
     suspend fun getWialonUnits(@Header("Authorization") token: String): Response<List<WialonUnit>>
+
+    @GET("/driver/shifts/current")
+    suspend fun getCurrentDriverShift(@Header("Authorization") token: String): Response<DriverShiftDto>
+
+    @POST("/driver/shifts/start")
+    suspend fun startDriverShift(@Header("Authorization") token: String): Response<DriverShiftDto>
+
+    @POST("/driver/shifts/accept-vehicle")
+    suspend fun acceptDriverVehicle(
+        @Header("Authorization") token: String,
+        @Body request: DriverAcceptVehicleRequest
+    ): Response<DriverShiftDto>
+
+    @POST("/driver/inspections")
+    suspend fun createDriverInspection(
+        @Header("Authorization") token: String,
+        @Body request: DriverInspectionCreateRequest
+    ): Response<InspectionDto>
+
+    @GET("/driver/inspections")
+    suspend fun getDriverInspections(@Header("Authorization") token: String): Response<List<InspectionDto>>
+
+    @GET("/driver/trips")
+    suspend fun getDriverTrips(@Header("Authorization") token: String): Response<List<TripDto>>
+
+    @POST("/driver/trips/{trip_id}/start")
+    suspend fun startDriverTrip(
+        @Header("Authorization") token: String,
+        @Path("trip_id") tripId: Int
+    ): Response<TripDto>
+
+    @POST("/driver/trips/{trip_id}/complete")
+    suspend fun completeDriverTrip(
+        @Header("Authorization") token: String,
+        @Path("trip_id") tripId: Int
+    ): Response<TripDto>
+
+    @POST("/driver/shifts/finish")
+    suspend fun finishDriverShift(@Header("Authorization") token: String): Response<DriverShiftDto>
 }
 
 object ApiClient {

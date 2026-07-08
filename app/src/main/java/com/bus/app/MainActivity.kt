@@ -537,19 +537,122 @@ fun AdminPanelScreen(navController: NavController, appViewModel: AppViewModel) {
 @Composable
 fun DriverSetupScreen(navController: NavController, appViewModel: AppViewModel) {
     val uiState by appViewModel.uiState.collectAsState()
-    var sName by remember { mutableStateOf("") }; var eName by remember { mutableStateOf("") }
+    var vehicleIdText by remember { mutableStateOf("") }
+    var inspectionStatus by remember { mutableStateOf("ok") }
+    var inspectionNotes by remember { mutableStateOf("") }
+    var sName by remember { mutableStateOf("") }
+    var eName by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF050816)).padding(24.dp)) {
-        Text("Создание рейса", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(16.dp)); SearchableStopField("Откуда", sName, { sName = it }, { appViewModel.setStartPoint(it.location) })
-        Spacer(modifier = Modifier.height(16.dp)); SearchableStopField("Куда", eName, { eName = it }, { appViewModel.setEndPoint(it.location) })
-        Spacer(modifier = Modifier.weight(1f))
-        if (uiState.startPoint != null && uiState.endPoint != null) {
-            NeonRunningButton("Запустить рейс", "Старт") { scope.launch {
-                val req = RouteRequest(sName, uiState.startPoint!!.latitude, uiState.startPoint!!.longitude, eName, uiState.endPoint!!.latitude, uiState.endPoint!!.longitude, "Теперь")
-                if (appViewModel.startRoute(req)) navController.navigate("main_map")
-            } }
+
+    LaunchedEffect(Unit) {
+        appViewModel.loadDriverDashboard()
+    }
+
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF050816)).padding(24.dp).verticalScroll(rememberScrollState())) {
+        Text("Кабинет водителя", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (uiState.driverLoading) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Spacer(modifier = Modifier.height(12.dp))
         }
+        uiState.driverErrorMessage?.let { message ->
+            Text(
+                if (uiState.driverOffline) "$message. Проверьте интернет." else message,
+                color = Color(0xFFFFA0A0),
+                fontSize = 13.sp
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        Text("Смена", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        Text(
+            text = uiState.driverShift?.let { "#${it.id}: ${it.status} / автобус ${it.vehicleId ?: "не принят"}" } ?: "Активной смены нет",
+            color = Color.White,
+            fontSize = 14.sp
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(modifier = Modifier.weight(1f), onClick = { scope.launch { appViewModel.startDriverShift() } }) {
+                Text("Начать смену")
+            }
+            Button(modifier = Modifier.weight(1f), onClick = { scope.launch { appViewModel.finishDriverShift() } }) {
+                Text("Завершить")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Прием автобуса", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        NeonTextField(vehicleIdText, { vehicleIdText = it.filter { ch -> ch.isDigit() } }, "ID автобуса")
+        Button(modifier = Modifier.fillMaxWidth(), onClick = {
+            scope.launch {
+                val vehicleId = vehicleIdText.toIntOrNull() ?: return@launch
+                appViewModel.acceptDriverVehicle(vehicleId)
+            }
+        }) { Text("Принять автобус") }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Осмотр", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        NeonTextField(inspectionStatus, { inspectionStatus = it }, "Статус осмотра (ok/problem)")
+        NeonTextField(inspectionNotes, { inspectionNotes = it }, "Комментарий")
+        Button(modifier = Modifier.fillMaxWidth(), onClick = {
+            scope.launch {
+                val vehicleId = vehicleIdText.toIntOrNull() ?: uiState.driverShift?.vehicleId ?: return@launch
+                appViewModel.submitDriverInspection(vehicleId, inspectionStatus, inspectionNotes)
+            }
+        }) { Text("Отправить осмотр") }
+        if (uiState.driverInspections.isEmpty()) {
+            Text("Осмотров пока нет", color = Color.Gray, fontSize = 13.sp)
+        } else {
+            uiState.driverInspections.take(3).forEach { inspection ->
+                Text("#${inspection.id}: ${inspection.status} ${inspection.createdAt ?: ""}", color = Color.Gray, fontSize = 13.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Назначенные рейсы", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        if (uiState.driverTrips.isEmpty()) {
+            Text("Назначенных рейсов нет", color = Color.Gray, fontSize = 13.sp)
+        } else {
+            uiState.driverTrips.forEach { trip ->
+                Card(Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF10192F))) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("Рейс #${trip.id}: ${trip.status}", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Шаблон: ${trip.routeTemplateId ?: "—"} / автобус: ${trip.vehicleId ?: "—"}", color = Color.Gray, fontSize = 12.sp)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(modifier = Modifier.weight(1f), onClick = { scope.launch { appViewModel.startDriverTrip(trip.id) } }) {
+                                Text("Старт")
+                            }
+                            Button(modifier = Modifier.weight(1f), onClick = { scope.launch { appViewModel.completeDriverTrip(trip.id) } }) {
+                                Text("Финиш")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Ручной маршрут", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        SearchableStopField("Откуда", sName, { sName = it }, { appViewModel.setStartPoint(it.location) })
+        Spacer(modifier = Modifier.height(12.dp))
+        SearchableStopField("Куда", eName, { eName = it }, { appViewModel.setEndPoint(it.location) })
+        if (uiState.startPoint != null && uiState.endPoint != null) {
+            NeonRunningButton("Запустить ручной рейс", "Старт") {
+                scope.launch {
+                    val req = RouteRequest(
+                        sName,
+                        uiState.startPoint!!.latitude,
+                        uiState.startPoint!!.longitude,
+                        eName,
+                        uiState.endPoint!!.latitude,
+                        uiState.endPoint!!.longitude,
+                        "Теперь"
+                    )
+                    if (appViewModel.startRoute(req)) navController.navigate("main_map")
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
         Button(modifier = Modifier.fillMaxWidth(), onClick = { navController.popBackStack() }) { Text("Назад") }
     }
 }

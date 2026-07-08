@@ -2,6 +2,8 @@ package com.bus.app.data.repository
 
 import com.bus.app.data.ActiveBus
 import com.bus.app.data.Company
+import com.bus.app.data.DriverAcceptVehicleRequest
+import com.bus.app.data.DriverInspectionCreateRequest
 import com.bus.app.data.LocationUpdate
 import com.bus.app.data.AuthResult
 import com.bus.app.data.CurrentUserDto
@@ -13,6 +15,9 @@ import com.bus.app.data.UserDto
 import com.bus.app.data.WialonAccount
 import com.bus.app.data.WialonAccountCreateRequest
 import com.bus.app.data.WialonUnit
+import com.bus.app.data.model.DriverShift
+import com.bus.app.data.model.Inspection
+import com.bus.app.data.model.Trip
 
 data class HealthSnapshot(
     val isReachable: Boolean,
@@ -36,4 +41,13 @@ interface BusRepository {
     suspend fun testWialonAccount(token: String, accountId: Int): Boolean
     suspend fun syncWialonUnits(token: String, accountId: Int): Boolean
     suspend fun getWialonUnits(token: String): List<WialonUnit>?
+    suspend fun getCurrentDriverShift(token: String): DriverShift?
+    suspend fun startDriverShift(token: String): DriverShift?
+    suspend fun acceptDriverVehicle(token: String, request: DriverAcceptVehicleRequest): DriverShift?
+    suspend fun createDriverInspection(token: String, request: DriverInspectionCreateRequest): Inspection?
+    suspend fun getDriverInspections(token: String): List<Inspection>?
+    suspend fun getDriverTrips(token: String): List<Trip>?
+    suspend fun startDriverTrip(token: String, tripId: Int): Trip?
+    suspend fun completeDriverTrip(token: String, tripId: Int): Trip?
+    suspend fun finishDriverShift(token: String): DriverShift?
 }
