@@ -19,6 +19,9 @@ import com.bus.app.data.model.StopPointDto
 import com.bus.app.data.model.DriverShiftDto
 import com.bus.app.data.model.InspectionDto
 import com.bus.app.data.model.TripDto
+import com.bus.app.data.model.TrackingEventDto
+import com.bus.app.data.model.DispatcherRequestDto
+import com.bus.app.data.model.DispatcherNotificationDto
 
 // --- МОДЕЛИ ДАННЫХ ---
 data class BusStop(val name: String, val location: GeoPoint)
@@ -128,6 +131,30 @@ data class MapConfigDto(
     @SerializedName("attribution") val attribution: String? = null
 )
 
+
+data class AdminTripCreateRequest(
+    @SerializedName("route_template_id") val routeTemplateId: Int? = null,
+    @SerializedName("driver_id") val driverId: Int? = null,
+    @SerializedName("vehicle_id") val vehicleId: Int? = null,
+    @SerializedName("start_time") val startTime: String? = null,
+    @SerializedName("end_time") val endTime: String? = null
+)
+
+data class AdminTripUpdateRequest(
+    @SerializedName("route_template_id") val routeTemplateId: Int? = null,
+    @SerializedName("driver_id") val driverId: Int? = null,
+    @SerializedName("vehicle_id") val vehicleId: Int? = null,
+    val status: String? = null,
+    @SerializedName("start_time") val startTime: String? = null,
+    @SerializedName("end_time") val endTime: String? = null
+)
+
+data class AssignDriverRequest(@SerializedName("driver_id") val driverId: Int)
+
+data class AssignVehicleRequest(@SerializedName("vehicle_id") val vehicleId: Int)
+
+data class RejectDispatcherRequest(val reason: String? = null)
+
 data class WialonAccount(
     val id: Int,
     val name: String,
@@ -233,6 +260,77 @@ interface BusApi {
         @Header("Authorization") token: String,
         @Path("icon_kind") iconKind: String
     ): Response<ResponseBody>
+
+
+    @GET("/admin/trips")
+    suspend fun getAdminTrips(@Header("Authorization") token: String): Response<List<TripDto>>
+
+    @POST("/admin/trips")
+    suspend fun createAdminTrip(
+        @Header("Authorization") token: String,
+        @Body request: AdminTripCreateRequest
+    ): Response<TripDto>
+
+    @PATCH("/admin/trips/{trip_id}")
+    suspend fun updateAdminTrip(
+        @Header("Authorization") token: String,
+        @Path("trip_id") tripId: Int,
+        @Body request: AdminTripUpdateRequest
+    ): Response<TripDto>
+
+    @POST("/admin/trips/{trip_id}/assign-driver")
+    suspend fun assignTripDriver(
+        @Header("Authorization") token: String,
+        @Path("trip_id") tripId: Int,
+        @Body request: AssignDriverRequest
+    ): Response<TripDto>
+
+    @POST("/admin/trips/{trip_id}/assign-vehicle")
+    suspend fun assignTripVehicle(
+        @Header("Authorization") token: String,
+        @Path("trip_id") tripId: Int,
+        @Body request: AssignVehicleRequest
+    ): Response<TripDto>
+
+    @POST("/admin/trips/{trip_id}/start")
+    suspend fun startAdminTrip(
+        @Header("Authorization") token: String,
+        @Path("trip_id") tripId: Int
+    ): Response<TripDto>
+
+    @POST("/admin/trips/{trip_id}/complete")
+    suspend fun completeAdminTrip(
+        @Header("Authorization") token: String,
+        @Path("trip_id") tripId: Int
+    ): Response<TripDto>
+
+    @POST("/admin/trips/{trip_id}/cancel")
+    suspend fun cancelAdminTrip(
+        @Header("Authorization") token: String,
+        @Path("trip_id") tripId: Int
+    ): Response<TripDto>
+
+    @GET("/admin/requests")
+    suspend fun getDispatcherRequests(@Header("Authorization") token: String): Response<List<DispatcherRequestDto>>
+
+    @POST("/admin/requests/{request_id}/approve")
+    suspend fun approveDispatcherRequest(
+        @Header("Authorization") token: String,
+        @Path("request_id") requestId: Int
+    ): Response<DispatcherRequestDto>
+
+    @POST("/admin/requests/{request_id}/reject")
+    suspend fun rejectDispatcherRequest(
+        @Header("Authorization") token: String,
+        @Path("request_id") requestId: Int,
+        @Body request: RejectDispatcherRequest
+    ): Response<DispatcherRequestDto>
+
+    @GET("/admin/tracking/events")
+    suspend fun getAdminTrackingEvents(@Header("Authorization") token: String): Response<List<TrackingEventDto>>
+
+    @GET("/admin/notifications/dispatcher")
+    suspend fun getDispatcherNotifications(@Header("Authorization") token: String): Response<List<DispatcherNotificationDto>>
 
     @GET("/driver/shifts/current")
     suspend fun getCurrentDriverShift(@Header("Authorization") token: String): Response<DriverShiftDto>

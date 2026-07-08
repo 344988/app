@@ -1,5 +1,9 @@
 package com.bus.app.domain.usecase
 
+import com.bus.app.data.AdminTripCreateRequest
+import com.bus.app.data.AdminTripUpdateRequest
+import com.bus.app.data.AssignDriverRequest
+import com.bus.app.data.AssignVehicleRequest
 import com.bus.app.data.AuthResult
 import com.bus.app.data.CurrentUserDto
 import com.bus.app.data.DriverAcceptVehicleRequest
@@ -10,6 +14,7 @@ import com.bus.app.data.LocationUpdate
 import com.bus.app.data.MapConfigDto
 import com.bus.app.data.LoginRequest
 import com.bus.app.data.LoginResponse
+import com.bus.app.data.RejectDispatcherRequest
 import com.bus.app.data.RouteRequest
 import com.bus.app.data.RouteResponse
 import com.bus.app.data.UserCreateRequest
@@ -20,11 +25,14 @@ import com.bus.app.data.WialonAccount
 import com.bus.app.data.WialonAccountCreateRequest
 import com.bus.app.data.WialonUnit
 import com.bus.app.data.model.DefectReport
+import com.bus.app.data.model.DispatcherNotification
+import com.bus.app.data.model.DispatcherRequest
 import com.bus.app.data.model.DriverShift
 import com.bus.app.data.model.Inspection
 import com.bus.app.data.model.LiveMapVehicle
 import com.bus.app.data.model.StopPoint
 import com.bus.app.data.model.Trip
+import com.bus.app.data.model.TrackingEvent
 import kotlinx.coroutines.runBlocking
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
@@ -87,6 +95,19 @@ private class FakeBusRepository(
     override suspend fun startDriverTrip(token: String, tripId: Int): Trip? = null
     override suspend fun completeDriverTrip(token: String, tripId: Int): Trip? = null
     override suspend fun finishDriverShift(token: String): DriverShift? = null
+    override suspend fun getAdminTrips(token: String): List<Trip> = emptyList()
+    override suspend fun createAdminTrip(token: String, request: AdminTripCreateRequest): Trip? = null
+    override suspend fun updateAdminTrip(token: String, tripId: Int, request: AdminTripUpdateRequest): Trip? = null
+    override suspend fun assignTripDriver(token: String, tripId: Int, request: AssignDriverRequest): Trip? = null
+    override suspend fun assignTripVehicle(token: String, tripId: Int, request: AssignVehicleRequest): Trip? = null
+    override suspend fun startAdminTrip(token: String, tripId: Int): Trip? = null
+    override suspend fun completeAdminTrip(token: String, tripId: Int): Trip? = null
+    override suspend fun cancelAdminTrip(token: String, tripId: Int): Trip? = null
+    override suspend fun getDispatcherRequests(token: String): List<DispatcherRequest> = emptyList()
+    override suspend fun approveDispatcherRequest(token: String, requestId: Int): DispatcherRequest? = null
+    override suspend fun rejectDispatcherRequest(token: String, requestId: Int, request: RejectDispatcherRequest): DispatcherRequest? = null
+    override suspend fun getAdminTrackingEvents(token: String): List<TrackingEvent> = emptyList()
+    override suspend fun getDispatcherNotifications(token: String): List<DispatcherNotification> = emptyList()
     override suspend fun getMapConfig(token: String): MapConfigDto? = null
     override suspend fun getLiveMapVehicles(token: String): List<LiveMapVehicle> = emptyList()
     override suspend fun getAdminMapVehicles(token: String): List<LiveMapVehicle> = emptyList()

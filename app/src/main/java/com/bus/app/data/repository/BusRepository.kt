@@ -7,7 +7,12 @@ import com.bus.app.data.DriverInspectionCreateRequest
 import com.bus.app.data.MechanicAssignRepairRequest
 import com.bus.app.data.MechanicCloseDefectRequest
 import com.bus.app.data.LocationUpdate
+import com.bus.app.data.RejectDispatcherRequest
 import com.bus.app.data.MapConfigDto
+import com.bus.app.data.AdminTripCreateRequest
+import com.bus.app.data.AdminTripUpdateRequest
+import com.bus.app.data.AssignDriverRequest
+import com.bus.app.data.AssignVehicleRequest
 import com.bus.app.data.AuthResult
 import com.bus.app.data.CurrentUserDto
 import com.bus.app.data.LoginRequest
@@ -19,11 +24,14 @@ import com.bus.app.data.WialonAccount
 import com.bus.app.data.WialonAccountCreateRequest
 import com.bus.app.data.WialonUnit
 import com.bus.app.data.model.DefectReport
+import com.bus.app.data.model.DispatcherNotification
+import com.bus.app.data.model.DispatcherRequest
 import com.bus.app.data.model.DriverShift
 import com.bus.app.data.model.Inspection
 import com.bus.app.data.model.LiveMapVehicle
 import com.bus.app.data.model.StopPoint
 import com.bus.app.data.model.Trip
+import com.bus.app.data.model.TrackingEvent
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 
@@ -58,6 +66,19 @@ interface BusRepository {
     suspend fun startDriverTrip(token: String, tripId: Int): Trip?
     suspend fun completeDriverTrip(token: String, tripId: Int): Trip?
     suspend fun finishDriverShift(token: String): DriverShift?
+    suspend fun getAdminTrips(token: String): List<Trip>?
+    suspend fun createAdminTrip(token: String, request: AdminTripCreateRequest): Trip?
+    suspend fun updateAdminTrip(token: String, tripId: Int, request: AdminTripUpdateRequest): Trip?
+    suspend fun assignTripDriver(token: String, tripId: Int, request: AssignDriverRequest): Trip?
+    suspend fun assignTripVehicle(token: String, tripId: Int, request: AssignVehicleRequest): Trip?
+    suspend fun startAdminTrip(token: String, tripId: Int): Trip?
+    suspend fun completeAdminTrip(token: String, tripId: Int): Trip?
+    suspend fun cancelAdminTrip(token: String, tripId: Int): Trip?
+    suspend fun getDispatcherRequests(token: String): List<DispatcherRequest>?
+    suspend fun approveDispatcherRequest(token: String, requestId: Int): DispatcherRequest?
+    suspend fun rejectDispatcherRequest(token: String, requestId: Int, request: RejectDispatcherRequest): DispatcherRequest?
+    suspend fun getAdminTrackingEvents(token: String): List<TrackingEvent>?
+    suspend fun getDispatcherNotifications(token: String): List<DispatcherNotification>?
     suspend fun getMapConfig(token: String): MapConfigDto?
     suspend fun getLiveMapVehicles(token: String): List<LiveMapVehicle>?
     suspend fun getAdminMapVehicles(token: String): List<LiveMapVehicle>?

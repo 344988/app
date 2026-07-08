@@ -1,7 +1,11 @@
 package com.bus.app.data.repository
 
 import com.bus.app.data.ActiveBus
+import com.bus.app.data.AdminTripCreateRequest
+import com.bus.app.data.AdminTripUpdateRequest
 import com.bus.app.data.ApiClient
+import com.bus.app.data.AssignDriverRequest
+import com.bus.app.data.AssignVehicleRequest
 import com.bus.app.data.AuthErrorType
 import com.bus.app.data.AuthResult
 import com.bus.app.data.Company
@@ -13,6 +17,7 @@ import com.bus.app.data.MechanicCloseDefectRequest
 import com.bus.app.data.LocationUpdate
 import com.bus.app.data.MapConfigDto
 import com.bus.app.data.LoginRequest
+import com.bus.app.data.RejectDispatcherRequest
 import com.bus.app.data.RouteRequest
 import com.bus.app.data.RouteResponse
 import com.bus.app.data.UserCreateRequest
@@ -21,11 +26,14 @@ import com.bus.app.data.WialonAccount
 import com.bus.app.data.WialonAccountCreateRequest
 import com.bus.app.data.WialonUnit
 import com.bus.app.data.model.DefectReport
+import com.bus.app.data.model.DispatcherNotification
+import com.bus.app.data.model.DispatcherRequest
 import com.bus.app.data.model.DriverShift
 import com.bus.app.data.model.Inspection
 import com.bus.app.data.model.LiveMapVehicle
 import com.bus.app.data.model.StopPoint
 import com.bus.app.data.model.Trip
+import com.bus.app.data.model.TrackingEvent
 import com.bus.app.data.model.toDomain
 import com.bus.app.config.AppConfig
 import kotlinx.coroutines.delay
@@ -224,6 +232,76 @@ class ApiBusRepository : BusRepository {
         return if (response.isSuccessful) response.body()?.toDomain() else null
     }
 
+
+
+    override suspend fun getAdminTrips(token: String): List<Trip>? {
+        val response = retryWithBackoff { ApiClient.api.getAdminTrips(token) }
+        return if (response.isSuccessful) response.body()?.map { it.toDomain() } else null
+    }
+
+    override suspend fun createAdminTrip(token: String, request: AdminTripCreateRequest): Trip? {
+        val response = retryWithBackoff { ApiClient.api.createAdminTrip(token, request) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun updateAdminTrip(token: String, tripId: Int, request: AdminTripUpdateRequest): Trip? {
+        val response = retryWithBackoff { ApiClient.api.updateAdminTrip(token, tripId, request) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun assignTripDriver(token: String, tripId: Int, request: AssignDriverRequest): Trip? {
+        val response = retryWithBackoff { ApiClient.api.assignTripDriver(token, tripId, request) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun assignTripVehicle(token: String, tripId: Int, request: AssignVehicleRequest): Trip? {
+        val response = retryWithBackoff { ApiClient.api.assignTripVehicle(token, tripId, request) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun startAdminTrip(token: String, tripId: Int): Trip? {
+        val response = retryWithBackoff { ApiClient.api.startAdminTrip(token, tripId) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun completeAdminTrip(token: String, tripId: Int): Trip? {
+        val response = retryWithBackoff { ApiClient.api.completeAdminTrip(token, tripId) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun cancelAdminTrip(token: String, tripId: Int): Trip? {
+        val response = retryWithBackoff { ApiClient.api.cancelAdminTrip(token, tripId) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun getDispatcherRequests(token: String): List<DispatcherRequest>? {
+        val response = retryWithBackoff { ApiClient.api.getDispatcherRequests(token) }
+        return if (response.isSuccessful) response.body()?.map { it.toDomain() } else null
+    }
+
+    override suspend fun approveDispatcherRequest(token: String, requestId: Int): DispatcherRequest? {
+        val response = retryWithBackoff { ApiClient.api.approveDispatcherRequest(token, requestId) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun rejectDispatcherRequest(
+        token: String,
+        requestId: Int,
+        request: RejectDispatcherRequest
+    ): DispatcherRequest? {
+        val response = retryWithBackoff { ApiClient.api.rejectDispatcherRequest(token, requestId, request) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun getAdminTrackingEvents(token: String): List<TrackingEvent>? {
+        val response = retryWithBackoff { ApiClient.api.getAdminTrackingEvents(token) }
+        return if (response.isSuccessful) response.body()?.map { it.toDomain() } else null
+    }
+
+    override suspend fun getDispatcherNotifications(token: String): List<DispatcherNotification>? {
+        val response = retryWithBackoff { ApiClient.api.getDispatcherNotifications(token) }
+        return if (response.isSuccessful) response.body()?.map { it.toDomain() } else null
+    }
 
     override suspend fun getMapConfig(token: String): MapConfigDto? {
         val response = retryWithBackoff { ApiClient.api.getMapConfig(token) }

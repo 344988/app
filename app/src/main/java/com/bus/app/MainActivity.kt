@@ -206,6 +206,7 @@ class MainActivity : ComponentActivity() {
                     composable("passenger_setup") { PassengerSetupScreen(navController, appViewModel) }
                     composable("admin_panel") { AdminPanelScreen(navController, appViewModel) }
                     composable("mechanic_panel") { MechanicPanelScreen(navController, appViewModel) }
+                    composable("dispatcher_panel") { DispatcherPanelScreen(navController, appViewModel) }
                 }
             }
         }
@@ -480,6 +481,7 @@ fun MainMapScreen(navController: NavController, appViewModel: AppViewModel) {
                     if (uiState.userRole == "admin") MenuButton("Админ-панель", Icons.Default.Settings) { navController.navigate("admin_panel"); showMenu = false }
                     if (uiState.userRole == "driver" || uiState.userRole == "admin") MenuButton("Настроить рейс", Icons.Default.Add) { navController.navigate("driver_setup"); showMenu = false }
                     if (uiState.userRole == "mechanic" || uiState.userRole == "admin") MenuButton("Механик", Icons.Default.Build) { navController.navigate("mechanic_panel"); showMenu = false }
+                    if (uiState.userRole == "dispatcher" || uiState.userRole == "admin") MenuButton("Диспетчер", Icons.Default.List) { navController.navigate("dispatcher_panel"); showMenu = false }
                     if (uiState.userRole == "passenger" || uiState.userRole == "admin") MenuButton("Выбрать автобус", Icons.Default.Search) { navController.navigate("passenger_setup"); showMenu = false }
                     Spacer(modifier = Modifier.weight(1f))
                     MenuButton("Выйти", Icons.Default.ExitToApp) { appViewModel.logout(); navController.navigate("auth"); showMenu = false }
@@ -649,6 +651,141 @@ fun AdminPanelScreen(navController: NavController, appViewModel: AppViewModel) {
             )
         }
         Spacer(modifier = Modifier.height(24.dp)); Button(modifier = Modifier.fillMaxWidth(), onClick = { navController.popBackStack() }) { Text("Назад") }
+    }
+}
+
+@Composable
+fun DispatcherPanelScreen(navController: NavController, appViewModel: AppViewModel) {
+    val uiState by appViewModel.uiState.collectAsState()
+    var routeTemplateIdText by remember { mutableStateOf("") }
+    var tripIdText by remember { mutableStateOf("") }
+    var driverIdText by remember { mutableStateOf("") }
+    var vehicleIdText by remember { mutableStateOf("") }
+    var tripStatusText by remember { mutableStateOf("") }
+    var rejectReason by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) { appViewModel.loadDispatcherDashboard() }
+
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF050816)).padding(24.dp).verticalScroll(rememberScrollState())) {
+        Text("Диспетчерский контур", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(12.dp))
+        if (uiState.dispatcherLoading) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        uiState.dispatcherErrorMessage?.let { message ->
+            Text(
+                if (uiState.dispatcherOffline) "$message. Проверьте интернет." else message,
+                color = Color(0xFFFFA0A0),
+                fontSize = 13.sp
+            )
+        }
+
+        Text("Создание и назначения рейса", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        NeonTextField(routeTemplateIdText, { routeTemplateIdText = it.filter { ch -> ch.isDigit() } }, "ID шаблона маршрута")
+        NeonTextField(tripIdText, { tripIdText = it.filter { ch -> ch.isDigit() } }, "ID рейса для действий")
+        NeonTextField(driverIdText, { driverIdText = it.filter { ch -> ch.isDigit() } }, "ID водителя")
+        NeonTextField(vehicleIdText, { vehicleIdText = it.filter { ch -> ch.isDigit() } }, "ID автобуса")
+        NeonTextField(tripStatusText, { tripStatusText = it }, "Новый статус рейса")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(modifier = Modifier.weight(1f), onClick = {
+                scope.launch {
+                    appViewModel.createDispatcherTrip(
+                        routeTemplateIdText.toIntOrNull(),
+                        driverIdText.toIntOrNull(),
+                        vehicleIdText.toIntOrNull()
+                    )
+                }
+            }) { Text("Создать рейс") }
+            Button(modifier = Modifier.weight(1f), onClick = {
+                scope.launch {
+                    val tripId = tripIdText.toIntOrNull() ?: return@launch
+                    val driverId = driverIdText.toIntOrNull() ?: return@launch
+                    appViewModel.assignDispatcherDriver(tripId, driverId)
+                }
+            }) { Text("Назначить водителя") }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(modifier = Modifier.weight(1f), onClick = {
+                scope.launch {
+                    val tripId = tripIdText.toIntOrNull() ?: return@launch
+                    val vehicleId = vehicleIdText.toIntOrNull() ?: return@launch
+                    appViewModel.assignDispatcherVehicle(tripId, vehicleId)
+                }
+            }) { Text("Назначить автобус") }
+            Button(modifier = Modifier.weight(1f), onClick = {
+                scope.launch {
+                    val tripId = tripIdText.toIntOrNull() ?: return@launch
+                    if (tripStatusText.isNotBlank()) appViewModel.updateDispatcherTripStatus(tripId, tripStatusText)
+                }
+            }) { Text("PATCH статус") }
+        }
+        Button(modifier = Modifier.fillMaxWidth(), onClick = { scope.launch { appViewModel.loadDispatcherDashboard() } }) { Text("Обновить") }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Рейсы", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        if (uiState.dispatcherTrips.isEmpty()) {
+            Text("Рейсов пока нет", color = Color.Gray, fontSize = 13.sp)
+        } else {
+            uiState.dispatcherTrips.forEach { trip ->
+                Card(Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF10192F))) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("Рейс #${trip.id}: ${trip.status}", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Шаблон: ${trip.routeTemplateId ?: "—"}; водитель: ${trip.driverId ?: "—"}; автобус: ${trip.vehicleId ?: "—"}", color = Color.Gray, fontSize = 12.sp)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(modifier = Modifier.weight(1f), onClick = { scope.launch { appViewModel.startDispatcherTrip(trip.id) } }) { Text("Старт") }
+                            Button(modifier = Modifier.weight(1f), onClick = { scope.launch { appViewModel.completeDispatcherTrip(trip.id) } }) { Text("Финиш") }
+                            Button(modifier = Modifier.weight(1f), onClick = { scope.launch { appViewModel.cancelDispatcherTrip(trip.id) } }) { Text("Отмена") }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Заявки пассажиров/подразделений", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        NeonTextField(rejectReason, { rejectReason = it }, "Причина отклонения")
+        if (uiState.dispatcherRequests.isEmpty()) {
+            Text("Заявок нет", color = Color.Gray, fontSize = 13.sp)
+        } else {
+            uiState.dispatcherRequests.forEach { request ->
+                Card(Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF10192F))) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("Заявка #${request.id}: ${request.status}", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("${request.startName ?: "—"} → ${request.endName ?: "—"}", color = Color.Gray, fontSize = 12.sp)
+                        request.comment?.let { Text(it, color = Color.Gray, fontSize = 12.sp) }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(modifier = Modifier.weight(1f), onClick = { scope.launch { appViewModel.approveDispatcherRequest(request.id) } }) { Text("Согласовать") }
+                            Button(modifier = Modifier.weight(1f), onClick = { scope.launch { appViewModel.rejectDispatcherRequest(request.id, rejectReason) } }) { Text("Отклонить") }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Нарушения / tracking events", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        if (uiState.dispatcherTrackingEvents.isEmpty()) {
+            Text("Событий нет", color = Color.Gray, fontSize = 13.sp)
+        } else {
+            uiState.dispatcherTrackingEvents.take(10).forEach { event ->
+                Text("Автобус ${event.vehicleId ?: "—"}: ${event.speed ?: 0.0} км/ч, ${event.recordedAt ?: event.createdAt ?: "—"}", color = Color.Gray, fontSize = 12.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Уведомления диспетчера", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        if (uiState.dispatcherNotifications.isEmpty()) {
+            Text("Уведомлений нет", color = Color.Gray, fontSize = 13.sp)
+        } else {
+            uiState.dispatcherNotifications.take(10).forEach { notification ->
+                Text("${notification.title ?: notification.kind ?: "Уведомление"}: ${notification.message}", color = Color.Gray, fontSize = 12.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(modifier = Modifier.fillMaxWidth(), onClick = { navController.popBackStack() }) { Text("Назад") }
     }
 }
 

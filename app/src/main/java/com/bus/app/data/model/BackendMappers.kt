@@ -96,6 +96,27 @@ fun TrackingEventDto.toDomain(): TrackingEvent = TrackingEvent(
     createdAt = createdAt
 )
 
+
+fun DispatcherRequestDto.toDomain(): DispatcherRequest = DispatcherRequest(
+    id = id,
+    userId = userId,
+    passengerId = passengerId,
+    status = status,
+    startName = startName,
+    endName = endName,
+    comment = comment,
+    createdAt = createdAt
+)
+
+fun DispatcherNotificationDto.toDomain(): DispatcherNotification = DispatcherNotification(
+    id = id,
+    title = title,
+    message = message,
+    kind = kind,
+    createdAt = createdAt,
+    isRead = isRead
+)
+
 fun LiveMapVehicleDto.toDomain(): LiveMapVehicle = LiveMapVehicle(
     id = id,
     vehicleId = vehicleId,

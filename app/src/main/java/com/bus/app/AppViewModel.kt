@@ -5,6 +5,10 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.bus.app.data.ActiveBus
+import com.bus.app.data.AdminTripCreateRequest
+import com.bus.app.data.AdminTripUpdateRequest
+import com.bus.app.data.AssignDriverRequest
+import com.bus.app.data.AssignVehicleRequest
 import com.bus.app.data.AuthErrorType
 import com.bus.app.data.AuthResult
 import com.bus.app.data.Company
@@ -15,6 +19,7 @@ import com.bus.app.data.LocationUpdate
 import com.bus.app.data.MapConfigDto
 import com.bus.app.data.MechanicAssignRepairRequest
 import com.bus.app.data.MechanicCloseDefectRequest
+import com.bus.app.data.RejectDispatcherRequest
 import com.bus.app.data.RouteRequest
 import com.bus.app.data.UserCreateRequest
 import com.bus.app.data.UserDto
@@ -27,11 +32,14 @@ import com.bus.app.data.repository.HealthSnapshot
 import com.bus.app.data.session.SessionDataStore
 import com.bus.app.data.session.SessionRuntime
 import com.bus.app.data.model.DefectReport
+import com.bus.app.data.model.DispatcherNotification
+import com.bus.app.data.model.DispatcherRequest
 import com.bus.app.data.model.DriverShift
 import com.bus.app.data.model.Inspection
 import com.bus.app.data.model.LiveMapVehicle
 import com.bus.app.data.model.StopPoint
 import com.bus.app.data.model.Trip
+import com.bus.app.data.model.TrackingEvent
 import com.bus.app.domain.usecase.LoginUseCase
 import com.bus.app.domain.usecase.SyncActiveRoutesUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -74,6 +82,13 @@ data class AppUiState(
     val mapLoading: Boolean = false,
     val mapErrorMessage: String? = null,
     val mapOffline: Boolean = false,
+    val dispatcherTrips: List<Trip> = emptyList(),
+    val dispatcherRequests: List<DispatcherRequest> = emptyList(),
+    val dispatcherTrackingEvents: List<TrackingEvent> = emptyList(),
+    val dispatcherNotifications: List<DispatcherNotification> = emptyList(),
+    val dispatcherLoading: Boolean = false,
+    val dispatcherErrorMessage: String? = null,
+    val dispatcherOffline: Boolean = false,
     val driverShift: DriverShift? = null,
     val driverTrips: List<Trip> = emptyList(),
     val driverInspections: List<Inspection> = emptyList(),
@@ -420,6 +435,156 @@ class AppViewModel(
         }
     }
 
+
+
+    suspend fun loadDispatcherDashboard() {
+        val token = _uiState.value.token ?: return
+        _uiState.update { it.copy(dispatcherLoading = true, dispatcherErrorMessage = null, dispatcherOffline = false) }
+        try {
+            val auth = "Bearer $token"
+            val trips = repository.getAdminTrips(auth) ?: emptyList()
+            val requests = repository.getDispatcherRequests(auth) ?: emptyList()
+            val trackingEvents = repository.getAdminTrackingEvents(auth) ?: emptyList()
+            val notifications = repository.getDispatcherNotifications(auth) ?: emptyList()
+            _uiState.update {
+                it.copy(
+                    dispatcherTrips = trips,
+                    dispatcherRequests = requests,
+                    dispatcherTrackingEvents = trackingEvents,
+                    dispatcherNotifications = notifications,
+                    dispatcherLoading = false,
+                    dispatcherErrorMessage = null,
+                    dispatcherOffline = false
+                )
+            }
+        } catch (_: Exception) {
+            _uiState.update {
+                it.copy(
+                    dispatcherLoading = false,
+                    dispatcherErrorMessage = "Не удалось загрузить диспетчерские данные",
+                    dispatcherOffline = true
+                )
+            }
+        }
+    }
+
+    suspend fun createDispatcherTrip(routeTemplateId: Int?, driverId: Int?, vehicleId: Int?): Boolean {
+        val token = _uiState.value.token ?: return false
+        return runDispatcherAction("Не удалось создать рейс") {
+            repository.createAdminTrip(
+                "Bearer $token",
+                AdminTripCreateRequest(routeTemplateId = routeTemplateId, driverId = driverId, vehicleId = vehicleId)
+            ) ?: return@runDispatcherAction false
+            loadDispatcherDashboard()
+            true
+        }
+    }
+
+
+    suspend fun updateDispatcherTripStatus(tripId: Int, status: String): Boolean {
+        val token = _uiState.value.token ?: return false
+        return runDispatcherAction("Не удалось обновить рейс") {
+            repository.updateAdminTrip(
+                "Bearer $token",
+                tripId,
+                AdminTripUpdateRequest(status = status.trim().ifBlank { null })
+            ) ?: return@runDispatcherAction false
+            loadDispatcherDashboard()
+            true
+        }
+    }
+
+    suspend fun assignDispatcherDriver(tripId: Int, driverId: Int): Boolean {
+        val token = _uiState.value.token ?: return false
+        return runDispatcherAction("Не удалось назначить водителя") {
+            repository.assignTripDriver("Bearer $token", tripId, AssignDriverRequest(driverId)) ?: return@runDispatcherAction false
+            loadDispatcherDashboard()
+            true
+        }
+    }
+
+    suspend fun assignDispatcherVehicle(tripId: Int, vehicleId: Int): Boolean {
+        val token = _uiState.value.token ?: return false
+        return runDispatcherAction("Не удалось назначить автобус") {
+            repository.assignTripVehicle("Bearer $token", tripId, AssignVehicleRequest(vehicleId)) ?: return@runDispatcherAction false
+            loadDispatcherDashboard()
+            true
+        }
+    }
+
+    suspend fun startDispatcherTrip(tripId: Int): Boolean = changeDispatcherTripState(
+        tripId = tripId,
+        errorMessage = "Не удалось запустить рейс"
+    ) { token -> repository.startAdminTrip(token, tripId) }
+
+    suspend fun completeDispatcherTrip(tripId: Int): Boolean = changeDispatcherTripState(
+        tripId = tripId,
+        errorMessage = "Не удалось завершить рейс"
+    ) { token -> repository.completeAdminTrip(token, tripId) }
+
+    suspend fun cancelDispatcherTrip(tripId: Int): Boolean = changeDispatcherTripState(
+        tripId = tripId,
+        errorMessage = "Не удалось отменить рейс"
+    ) { token -> repository.cancelAdminTrip(token, tripId) }
+
+    suspend fun approveDispatcherRequest(requestId: Int): Boolean {
+        val token = _uiState.value.token ?: return false
+        return runDispatcherAction("Не удалось согласовать заявку") {
+            repository.approveDispatcherRequest("Bearer $token", requestId) ?: return@runDispatcherAction false
+            loadDispatcherDashboard()
+            true
+        }
+    }
+
+    suspend fun rejectDispatcherRequest(requestId: Int, reason: String): Boolean {
+        val token = _uiState.value.token ?: return false
+        return runDispatcherAction("Не удалось отклонить заявку") {
+            repository.rejectDispatcherRequest(
+                "Bearer $token",
+                requestId,
+                RejectDispatcherRequest(reason = reason.trim().ifBlank { null })
+            ) ?: return@runDispatcherAction false
+            loadDispatcherDashboard()
+            true
+        }
+    }
+
+    private suspend fun changeDispatcherTripState(
+        tripId: Int,
+        errorMessage: String,
+        action: suspend (String) -> Trip?
+    ): Boolean {
+        val token = _uiState.value.token ?: return false
+        return runDispatcherAction(errorMessage) {
+            action("Bearer $token") ?: return@runDispatcherAction false
+            loadDispatcherDashboard()
+            true
+        }
+    }
+
+    private suspend fun runDispatcherAction(errorMessage: String, action: suspend () -> Boolean): Boolean {
+        _uiState.update { it.copy(dispatcherLoading = true, dispatcherErrorMessage = null, dispatcherOffline = false) }
+        return try {
+            val result = action()
+            _uiState.update {
+                it.copy(
+                    dispatcherLoading = false,
+                    dispatcherErrorMessage = if (result) null else errorMessage,
+                    dispatcherOffline = false
+                )
+            }
+            result
+        } catch (_: Exception) {
+            _uiState.update {
+                it.copy(
+                    dispatcherLoading = false,
+                    dispatcherErrorMessage = errorMessage,
+                    dispatcherOffline = true
+                )
+            }
+            false
+        }
+    }
 
     suspend fun loadDriverDashboard() {
         val token = _uiState.value.token ?: return

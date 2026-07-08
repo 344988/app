@@ -113,6 +113,27 @@ data class LiveMapVehicleDto(
     @SerializedName("updated_at") val updatedAt: String? = null
 )
 
+
+data class DispatcherRequestDto(
+    val id: Int,
+    @SerializedName("user_id") val userId: Int? = null,
+    @SerializedName("passenger_id") val passengerId: Int? = null,
+    val status: String,
+    @SerializedName("start_name") val startName: String? = null,
+    @SerializedName("end_name") val endName: String? = null,
+    val comment: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null
+)
+
+data class DispatcherNotificationDto(
+    val id: Int,
+    val title: String? = null,
+    val message: String,
+    val kind: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
+    @SerializedName("is_read") val isRead: Boolean? = null
+)
+
 data class User(
     val id: Int?,
     val login: String,
@@ -207,6 +228,27 @@ data class TrackingEvent(
     val heading: Double?,
     val recordedAt: String?,
     val createdAt: String?
+)
+
+
+data class DispatcherRequest(
+    val id: Int,
+    val userId: Int?,
+    val passengerId: Int?,
+    val status: String,
+    val startName: String?,
+    val endName: String?,
+    val comment: String?,
+    val createdAt: String?
+)
+
+data class DispatcherNotification(
+    val id: Int,
+    val title: String?,
+    val message: String,
+    val kind: String?,
+    val createdAt: String?,
+    val isRead: Boolean?
 )
 
 data class LiveMapVehicle(
