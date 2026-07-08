@@ -5,6 +5,7 @@ import com.google.gson.annotations.SerializedName
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody
+import okhttp3.ResponseBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Response
 import retrofit2.Retrofit
@@ -13,6 +14,8 @@ import retrofit2.http.*
 import java.util.concurrent.TimeUnit
 import org.osmdroid.util.GeoPoint
 import com.bus.app.data.model.DefectReportDto
+import com.bus.app.data.model.LiveMapVehicleDto
+import com.bus.app.data.model.StopPointDto
 import com.bus.app.data.model.DriverShiftDto
 import com.bus.app.data.model.InspectionDto
 import com.bus.app.data.model.TripDto
@@ -81,7 +84,8 @@ data class ActiveBus(
     @SerializedName("license_plate") val licensePlate: String?,
     val latitude: Double,
     val longitude: Double,
-    @SerializedName("company_id") val companyId: Int
+    @SerializedName("company_id") val companyId: Int,
+    val speed: Double? = null
 )
 
 data class UserCreateRequest(
@@ -110,6 +114,18 @@ data class MechanicAssignRepairRequest(
 
 data class MechanicCloseDefectRequest(
     val resolution: String? = null
+)
+
+
+data class MapConfigDto(
+    @SerializedName("tile_url") val tileUrl: String? = null,
+    @SerializedName("tile_url_template") val tileUrlTemplate: String? = null,
+    @SerializedName("min_zoom") val minZoom: Int? = null,
+    @SerializedName("max_zoom") val maxZoom: Int? = null,
+    @SerializedName("center_lat") val centerLat: Double? = null,
+    @SerializedName("center_lng") val centerLng: Double? = null,
+    @SerializedName("default_zoom") val defaultZoom: Double? = null,
+    @SerializedName("attribution") val attribution: String? = null
 )
 
 data class WialonAccount(
@@ -184,6 +200,39 @@ interface BusApi {
 
     @GET("/admin/wialon/units")
     suspend fun getWialonUnits(@Header("Authorization") token: String): Response<List<WialonUnit>>
+
+
+    @GET("/admin/map/config")
+    suspend fun getMapConfig(@Header("Authorization") token: String): Response<MapConfigDto>
+
+    @GET("/admin/map/tiles/{z}/{x}/{y}")
+    suspend fun getMapTile(
+        @Header("Authorization") token: String,
+        @Path("z") z: Int,
+        @Path("x") x: Int,
+        @Path("y") y: Int
+    ): Response<ResponseBody>
+
+    @GET("/map/vehicles/live")
+    suspend fun getLiveMapVehicles(@Header("Authorization") token: String): Response<List<LiveMapVehicleDto>>
+
+    @GET("/admin/map/vehicles")
+    suspend fun getAdminMapVehicles(@Header("Authorization") token: String): Response<List<LiveMapVehicleDto>>
+
+    @GET("/admin/map/vehicle/{vehicle_id}")
+    suspend fun getAdminMapVehicle(
+        @Header("Authorization") token: String,
+        @Path("vehicle_id") vehicleId: Int
+    ): Response<LiveMapVehicleDto>
+
+    @GET("/admin/map/stops")
+    suspend fun getMapStops(@Header("Authorization") token: String): Response<List<StopPointDto>>
+
+    @GET("/admin/map/icons/{icon_kind}")
+    suspend fun getMapIcon(
+        @Header("Authorization") token: String,
+        @Path("icon_kind") iconKind: String
+    ): Response<ResponseBody>
 
     @GET("/driver/shifts/current")
     suspend fun getCurrentDriverShift(@Header("Authorization") token: String): Response<DriverShiftDto>

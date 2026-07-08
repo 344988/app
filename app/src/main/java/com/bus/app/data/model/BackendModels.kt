@@ -107,6 +107,7 @@ data class LiveMapVehicleDto(
     @SerializedName("license_plate") val licensePlate: String? = null,
     val latitude: Double,
     val longitude: Double,
+    val speed: Double? = null,
     @SerializedName("company_id") val companyId: Int? = null,
     val status: String? = null,
     @SerializedName("updated_at") val updatedAt: String? = null
@@ -217,6 +218,7 @@ data class LiveMapVehicle(
     val licensePlate: String?,
     val latitude: Double,
     val longitude: Double,
+    val speed: Double?,
     val companyId: Int?,
     val status: String?,
     val updatedAt: String?
@@ -227,5 +229,6 @@ data class LiveMapVehicleUi(
     val subtitle: String,
     val latitude: Double,
     val longitude: Double,
-    val status: String?
+    val status: String?,
+    val speed: Double?
 )

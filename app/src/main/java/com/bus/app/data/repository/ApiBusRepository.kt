@@ -11,6 +11,7 @@ import com.bus.app.data.DriverInspectionCreateRequest
 import com.bus.app.data.MechanicAssignRepairRequest
 import com.bus.app.data.MechanicCloseDefectRequest
 import com.bus.app.data.LocationUpdate
+import com.bus.app.data.MapConfigDto
 import com.bus.app.data.LoginRequest
 import com.bus.app.data.RouteRequest
 import com.bus.app.data.RouteResponse
@@ -22,6 +23,8 @@ import com.bus.app.data.WialonUnit
 import com.bus.app.data.model.DefectReport
 import com.bus.app.data.model.DriverShift
 import com.bus.app.data.model.Inspection
+import com.bus.app.data.model.LiveMapVehicle
+import com.bus.app.data.model.StopPoint
 import com.bus.app.data.model.Trip
 import com.bus.app.data.model.toDomain
 import com.bus.app.config.AppConfig
@@ -219,6 +222,37 @@ class ApiBusRepository : BusRepository {
     override suspend fun finishDriverShift(token: String): DriverShift? {
         val response = retryWithBackoff { ApiClient.api.finishDriverShift(token) }
         return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+
+    override suspend fun getMapConfig(token: String): MapConfigDto? {
+        val response = retryWithBackoff { ApiClient.api.getMapConfig(token) }
+        return if (response.isSuccessful) response.body() else null
+    }
+
+    override suspend fun getLiveMapVehicles(token: String): List<LiveMapVehicle>? {
+        val response = retryWithBackoff { ApiClient.api.getLiveMapVehicles(token) }
+        return if (response.isSuccessful) response.body()?.map { it.toDomain() } else null
+    }
+
+    override suspend fun getAdminMapVehicles(token: String): List<LiveMapVehicle>? {
+        val response = retryWithBackoff { ApiClient.api.getAdminMapVehicles(token) }
+        return if (response.isSuccessful) response.body()?.map { it.toDomain() } else null
+    }
+
+    override suspend fun getAdminMapVehicle(token: String, vehicleId: Int): LiveMapVehicle? {
+        val response = retryWithBackoff { ApiClient.api.getAdminMapVehicle(token, vehicleId) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
+    }
+
+    override suspend fun getMapStops(token: String): List<StopPoint>? {
+        val response = retryWithBackoff { ApiClient.api.getMapStops(token) }
+        return if (response.isSuccessful) response.body()?.map { it.toDomain() } else null
+    }
+
+    override suspend fun getMapIcon(token: String, iconKind: String): ByteArray? {
+        val response = retryWithBackoff { ApiClient.api.getMapIcon(token, iconKind) }
+        return if (response.isSuccessful) response.body()?.bytes() else null
     }
 
     override suspend fun createDriverDefect(

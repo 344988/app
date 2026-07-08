@@ -105,6 +105,7 @@ fun LiveMapVehicleDto.toDomain(): LiveMapVehicle = LiveMapVehicle(
     licensePlate = licensePlate,
     latitude = latitude,
     longitude = longitude,
+    speed = speed,
     companyId = companyId,
     status = status,
     updatedAt = updatedAt
@@ -115,5 +116,6 @@ fun LiveMapVehicle.toUiModel(): LiveMapVehicleUi = LiveMapVehicleUi(
     subtitle = licensePlate ?: driverLogin ?: "Без номера",
     latitude = latitude,
     longitude = longitude,
-    status = status
+    status = status,
+    speed = speed
 )

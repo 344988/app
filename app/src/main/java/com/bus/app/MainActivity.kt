@@ -1,5 +1,7 @@
 package com.bus.app
 
+import android.graphics.BitmapFactory
+import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
@@ -45,6 +47,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.bus.app.config.AppConfig
 import com.bus.app.data.*
 import com.bus.app.data.session.SessionRuntime
 import com.bus.app.ui.theme.СлужебныйАвтобусTheme
@@ -79,6 +82,21 @@ private val OSM_HTTPS_TILE_SOURCE = XYTileSource(
     ".png",
     arrayOf("https://tile.openstreetmap.org/")
 )
+
+
+private fun backendTileSource(config: MapConfigDto?): XYTileSource {
+    val baseUrl = config?.tileUrl
+        ?.takeIf { it.isNotBlank() && !it.contains("{z}") }
+        ?: "${AppConfig.BASE_URL.trimEnd('/')}/admin/map/tiles/"
+    return XYTileSource(
+        "BackendTiles",
+        config?.minZoom ?: 0,
+        config?.maxZoom ?: 19,
+        256,
+        ".png",
+        arrayOf(baseUrl.trimEnd('/') + "/")
+    )
+}
 
 private val LOCAL_STOPS_FALLBACK = listOf(
     BusStop("Луговая", GeoPoint(43.1137, 131.9382)),
@@ -138,7 +156,7 @@ class MainActivity : ComponentActivity() {
                     if (uiState.token != null) {
                         while(isActive) {
                             appViewModel.refreshActiveRoutes()
-                            delay(5000)
+                            delay(15000)
                         }
                     }
                 }
@@ -266,29 +284,13 @@ fun AuthScreen(navController: NavController, appViewModel: AppViewModel) {
 fun MainMapScreen(navController: NavController, appViewModel: AppViewModel) {
     val uiState by appViewModel.uiState.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
-    var mapError by remember { mutableStateOf<String?>(null) }
+    val tileSource = remember(uiState.mapConfig) { backendTileSource(uiState.mapConfig) }
 
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            try {
-                val response = ApiClient.okHttpClient.newCall(
-                    Request.Builder()
-                        .url("https://tile.openstreetmap.org/0/0/0.png")
-                        .header("User-Agent", "BusApp")
-                        .head()
-                        .build()
-                ).execute()
-                if (!response.isSuccessful) {
-                    withContext(Dispatchers.Main) {
-                        mapError = "Не удалось загрузить тайлы карты (код ${response.code})."
-                    }
-                } else {
-                    withContext(Dispatchers.Main) { mapError = null }
-                }
-            } catch (_: Exception) {
-                withContext(Dispatchers.Main) {
-                    mapError = "Нет доступа к tile.openstreetmap.org. Проверьте интернет/DNS."
-                }
+    LaunchedEffect(uiState.token) {
+        if (uiState.token != null) {
+            while (isActive) {
+                appViewModel.refreshServerMap()
+                delay(10000)
             }
         }
     }
@@ -296,11 +298,38 @@ fun MainMapScreen(navController: NavController, appViewModel: AppViewModel) {
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
-            factory = { context -> MapView(context).apply { setTileSource(OSM_HTTPS_TILE_SOURCE); setMultiTouchControls(true); controller.setZoom(12.0); controller.setCenter(GeoPoint(43.1155, 131.8855)) } },
+            factory = { context ->
+                MapView(context).apply {
+                    setTileSource(tileSource)
+                    setMultiTouchControls(true)
+                    controller.setZoom(uiState.mapConfig?.defaultZoom ?: 12.0)
+                    controller.setCenter(GeoPoint(uiState.mapConfig?.centerLat ?: 43.1155, uiState.mapConfig?.centerLng ?: 131.8855))
+                }
+            },
             update = { view ->
+                view.setTileSource(tileSource)
                 view.overlays.clear()
-                uiState.activeBuses.forEach { bus ->
-                    val m = Marker(view); m.position = GeoPoint(bus.latitude, bus.longitude); m.title = "${bus.vehicleModel} (${bus.licensePlate})"; m.icon = view.context.getDrawable(android.R.drawable.ic_menu_compass); view.overlays.add(m)
+                val backendBusIcon = uiState.mapBusIconBytes
+                    ?.let { bytes -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
+                    ?.let { bitmap -> BitmapDrawable(view.resources, bitmap) }
+                val backendStopIcon = uiState.mapStopIconBytes
+                    ?.let { bytes -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
+                    ?.let { bitmap -> BitmapDrawable(view.resources, bitmap) }
+                uiState.liveMapVehicles.forEach { bus ->
+                    val m = Marker(view)
+                    m.position = GeoPoint(bus.latitude, bus.longitude)
+                    m.title = "${bus.vehicleModel ?: "Автобус"} (${bus.licensePlate ?: "без номера"})"
+                    m.snippet = "Статус: ${bus.status ?: "—"}; скорость: ${bus.speed?.let { "${it} км/ч" } ?: "—"}"
+                    m.icon = backendBusIcon ?: view.context.getDrawable(android.R.drawable.ic_menu_compass)
+                    view.overlays.add(m)
+                }
+                uiState.mapStops.forEach { stop ->
+                    val m = Marker(view)
+                    m.position = GeoPoint(stop.latitude, stop.longitude)
+                    m.title = stop.name
+                    m.snippet = "Остановка"
+                    m.icon = backendStopIcon ?: view.context.getDrawable(android.R.drawable.ic_menu_mylocation)
+                    view.overlays.add(m)
                 }
                 uiState.userLocation?.let { val m = Marker(view); m.position = it; m.title = "Вы"; m.icon = view.context.getDrawable(android.R.drawable.star_on); view.overlays.add(m) }
                 if (uiState.routePoints.isNotEmpty()) {
@@ -309,7 +338,7 @@ fun MainMapScreen(navController: NavController, appViewModel: AppViewModel) {
                 view.invalidate()
             }
         )
-        mapError?.let { error ->
+        uiState.mapErrorMessage?.let { error ->
             Text(
                 text = error,
                 color = Color.White,

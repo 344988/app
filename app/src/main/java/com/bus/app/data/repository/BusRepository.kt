@@ -7,6 +7,7 @@ import com.bus.app.data.DriverInspectionCreateRequest
 import com.bus.app.data.MechanicAssignRepairRequest
 import com.bus.app.data.MechanicCloseDefectRequest
 import com.bus.app.data.LocationUpdate
+import com.bus.app.data.MapConfigDto
 import com.bus.app.data.AuthResult
 import com.bus.app.data.CurrentUserDto
 import com.bus.app.data.LoginRequest
@@ -20,6 +21,8 @@ import com.bus.app.data.WialonUnit
 import com.bus.app.data.model.DefectReport
 import com.bus.app.data.model.DriverShift
 import com.bus.app.data.model.Inspection
+import com.bus.app.data.model.LiveMapVehicle
+import com.bus.app.data.model.StopPoint
 import com.bus.app.data.model.Trip
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
@@ -55,6 +58,12 @@ interface BusRepository {
     suspend fun startDriverTrip(token: String, tripId: Int): Trip?
     suspend fun completeDriverTrip(token: String, tripId: Int): Trip?
     suspend fun finishDriverShift(token: String): DriverShift?
+    suspend fun getMapConfig(token: String): MapConfigDto?
+    suspend fun getLiveMapVehicles(token: String): List<LiveMapVehicle>?
+    suspend fun getAdminMapVehicles(token: String): List<LiveMapVehicle>?
+    suspend fun getAdminMapVehicle(token: String, vehicleId: Int): LiveMapVehicle?
+    suspend fun getMapStops(token: String): List<StopPoint>?
+    suspend fun getMapIcon(token: String, iconKind: String): ByteArray?
     suspend fun createDriverDefect(
         token: String,
         vehicleId: RequestBody,

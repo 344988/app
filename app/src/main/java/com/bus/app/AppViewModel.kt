@@ -12,6 +12,7 @@ import com.bus.app.data.CurrentUserDto
 import com.bus.app.data.DriverAcceptVehicleRequest
 import com.bus.app.data.DriverInspectionCreateRequest
 import com.bus.app.data.LocationUpdate
+import com.bus.app.data.MapConfigDto
 import com.bus.app.data.MechanicAssignRepairRequest
 import com.bus.app.data.MechanicCloseDefectRequest
 import com.bus.app.data.RouteRequest
@@ -28,6 +29,8 @@ import com.bus.app.data.session.SessionRuntime
 import com.bus.app.data.model.DefectReport
 import com.bus.app.data.model.DriverShift
 import com.bus.app.data.model.Inspection
+import com.bus.app.data.model.LiveMapVehicle
+import com.bus.app.data.model.StopPoint
 import com.bus.app.data.model.Trip
 import com.bus.app.domain.usecase.LoginUseCase
 import com.bus.app.domain.usecase.SyncActiveRoutesUseCase
@@ -61,6 +64,14 @@ data class AppUiState(
     val serverStatus: ServerStatusLevel = ServerStatusLevel.RED,
     val serverPingMs: Long? = null,
     val packetLossPercent: Int = 100,
+    val mapConfig: MapConfigDto? = null,
+    val liveMapVehicles: List<LiveMapVehicle> = emptyList(),
+    val mapStops: List<StopPoint> = emptyList(),
+    val mapBusIconBytes: ByteArray? = null,
+    val mapStopIconBytes: ByteArray? = null,
+    val mapLoading: Boolean = false,
+    val mapErrorMessage: String? = null,
+    val mapOffline: Boolean = false,
     val driverShift: DriverShift? = null,
     val driverTrips: List<Trip> = emptyList(),
     val driverInspections: List<Inspection> = emptyList(),
@@ -245,6 +256,68 @@ class AppViewModel(
         } catch (_: Exception) {
             _uiState.update { it.copy(errorMessage = "Не удалось обновить данные маршрутов") }
         }
+    }
+
+
+    suspend fun refreshServerMap() {
+        val token = _uiState.value.token ?: return
+        _uiState.update { it.copy(mapLoading = true, mapErrorMessage = null, mapOffline = false) }
+        try {
+            val auth = "Bearer $token"
+            val health = repository.getHealthSnapshot()
+            val liveVehicles = repository.getLiveMapVehicles(auth) ?: emptyList()
+            val currentState = _uiState.value
+            val shouldLoadAdminMap = currentState.userRole == "admin" || currentState.userRole == "mechanic"
+            val mapConfig = repository.getMapConfig(auth) ?: currentState.mapConfig
+            val stops = if (shouldLoadAdminMap) {
+                repository.getMapStops(auth) ?: currentState.mapStops
+            } else {
+                currentState.mapStops
+            }
+            val busIcon = currentState.mapBusIconBytes ?: repository.getMapIcon(auth, "bus")
+            val stopIcon = currentState.mapStopIconBytes ?: repository.getMapIcon(auth, "stop")
+            _uiState.update { state ->
+                state.copy(
+                    apiHealthy = health.isReachable,
+                    serverStatus = health.toStatusLevel(),
+                    serverPingMs = health.avgPingMs,
+                    packetLossPercent = health.packetLossPercent,
+                    mapConfig = mapConfig,
+                    liveMapVehicles = liveVehicles,
+                    mapStops = stops,
+                    mapBusIconBytes = busIcon,
+                    mapStopIconBytes = stopIcon,
+                    activeBuses = liveVehicles.mapNotNull { vehicle -> vehicle.toActiveBus() },
+                    mapLoading = false,
+                    mapErrorMessage = null,
+                    mapOffline = false
+                )
+            }
+        } catch (_: Exception) {
+            _uiState.update {
+                it.copy(
+                    mapLoading = false,
+                    mapErrorMessage = "Не удалось обновить серверную карту",
+                    mapOffline = true,
+                    apiHealthy = false,
+                    serverStatus = ServerStatusLevel.RED
+                )
+            }
+        }
+    }
+
+    private fun LiveMapVehicle.toActiveBus(): ActiveBus? {
+        val id = vehicleId ?: id ?: return null
+        return ActiveBus(
+            id = id,
+            driverLogin = driverLogin ?: "—",
+            vehicleModel = vehicleModel,
+            licensePlate = licensePlate,
+            latitude = latitude,
+            longitude = longitude,
+            companyId = companyId ?: 0,
+            speed = speed
+        )
     }
 
     suspend fun getAdminData(): List<UserDto> {

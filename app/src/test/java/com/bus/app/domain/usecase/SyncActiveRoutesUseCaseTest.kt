@@ -9,6 +9,7 @@ import com.bus.app.data.MechanicAssignRepairRequest
 import com.bus.app.data.MechanicCloseDefectRequest
 import com.bus.app.data.Company
 import com.bus.app.data.LocationUpdate
+import com.bus.app.data.MapConfigDto
 import com.bus.app.data.LoginRequest
 import com.bus.app.data.RouteRequest
 import com.bus.app.data.RouteResponse
@@ -19,6 +20,8 @@ import com.bus.app.data.WialonUnit
 import com.bus.app.data.model.DefectReport
 import com.bus.app.data.model.DriverShift
 import com.bus.app.data.model.Inspection
+import com.bus.app.data.model.LiveMapVehicle
+import com.bus.app.data.model.StopPoint
 import com.bus.app.data.model.Trip
 import com.bus.app.data.repository.BusRepository
 import com.bus.app.data.repository.HealthSnapshot
@@ -103,6 +106,12 @@ private class FakeSyncRepository(
     override suspend fun startDriverTrip(token: String, tripId: Int): Trip? = null
     override suspend fun completeDriverTrip(token: String, tripId: Int): Trip? = null
     override suspend fun finishDriverShift(token: String): DriverShift? = null
+    override suspend fun getMapConfig(token: String): MapConfigDto? = null
+    override suspend fun getLiveMapVehicles(token: String): List<LiveMapVehicle> = emptyList()
+    override suspend fun getAdminMapVehicles(token: String): List<LiveMapVehicle> = emptyList()
+    override suspend fun getAdminMapVehicle(token: String, vehicleId: Int): LiveMapVehicle? = null
+    override suspend fun getMapStops(token: String): List<StopPoint> = emptyList()
+    override suspend fun getMapIcon(token: String, iconKind: String): ByteArray? = null
     override suspend fun createDriverDefect(
         token: String,
         vehicleId: RequestBody,
