@@ -51,7 +51,9 @@ import com.bus.app.config.AppConfig
 import com.bus.app.data.*
 import com.bus.app.data.session.SessionRuntime
 import com.bus.app.ui.theme.СлужебныйАвтобусTheme
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -83,6 +85,41 @@ private val OSM_HTTPS_TILE_SOURCE = XYTileSource(
     arrayOf("https://tile.openstreetmap.org/")
 )
 
+
+
+private fun animateMarkerPosition(
+    markerKey: Int,
+    marker: Marker,
+    target: GeoPoint,
+    mapView: MapView,
+    scope: CoroutineScope,
+    jobs: MutableMap<Int, Job>
+) {
+    val start = marker.position ?: target
+    if (kotlin.math.abs(start.latitude - target.latitude) < 0.000001 &&
+        kotlin.math.abs(start.longitude - target.longitude) < 0.000001
+    ) {
+        marker.position = target
+        return
+    }
+
+    jobs.remove(markerKey)?.cancel()
+    jobs[markerKey] = scope.launch {
+        val frames = 20
+        repeat(frames) { frame ->
+            val fraction = (frame + 1).toDouble() / frames.toDouble()
+            marker.position = GeoPoint(
+                start.latitude + (target.latitude - start.latitude) * fraction,
+                start.longitude + (target.longitude - start.longitude) * fraction
+            )
+            mapView.invalidate()
+            delay(50)
+        }
+        marker.position = target
+        mapView.invalidate()
+        jobs.remove(markerKey)
+    }
+}
 
 private fun backendTileSource(config: MapConfigDto?): XYTileSource {
     val baseUrl = config?.tileUrl
@@ -285,6 +322,12 @@ fun MainMapScreen(navController: NavController, appViewModel: AppViewModel) {
     val uiState by appViewModel.uiState.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
     val tileSource = remember(uiState.mapConfig) { backendTileSource(uiState.mapConfig) }
+    val mapAnimationScope = rememberCoroutineScope()
+    val vehicleMarkers = remember { mutableMapOf<Int, Marker>() }
+    val vehicleMarkerJobs = remember { mutableMapOf<Int, Job>() }
+    val stopMarkers = remember { mutableMapOf<Int, Marker>() }
+    val userMarkerRef = remember { arrayOfNulls<Marker>(1) }
+    val routeLineRef = remember { arrayOfNulls<Polyline>(1) }
 
     LaunchedEffect(uiState.token) {
         if (uiState.token != null) {
@@ -308,32 +351,74 @@ fun MainMapScreen(navController: NavController, appViewModel: AppViewModel) {
             },
             update = { view ->
                 view.setTileSource(tileSource)
-                view.overlays.clear()
                 val backendBusIcon = uiState.mapBusIconBytes
                     ?.let { bytes -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
                     ?.let { bitmap -> BitmapDrawable(view.resources, bitmap) }
                 val backendStopIcon = uiState.mapStopIconBytes
                     ?.let { bytes -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
                     ?.let { bitmap -> BitmapDrawable(view.resources, bitmap) }
+
+                val currentVehicleIds = uiState.liveMapVehicles.map { bus -> bus.vehicleId ?: bus.id ?: bus.hashCode() }.toSet()
+                vehicleMarkers.keys.toList().filterNot { it in currentVehicleIds }.forEach { staleId ->
+                    vehicleMarkerJobs.remove(staleId)?.cancel()
+                    vehicleMarkers.remove(staleId)?.let { view.overlays.remove(it) }
+                }
                 uiState.liveMapVehicles.forEach { bus ->
-                    val m = Marker(view)
-                    m.position = GeoPoint(bus.latitude, bus.longitude)
-                    m.title = "${bus.vehicleModel ?: "Автобус"} (${bus.licensePlate ?: "без номера"})"
-                    m.snippet = "Статус: ${bus.status ?: "—"}; скорость: ${bus.speed?.let { "${it} км/ч" } ?: "—"}"
-                    m.icon = backendBusIcon ?: view.context.getDrawable(android.R.drawable.ic_menu_compass)
-                    view.overlays.add(m)
+                    val markerId = bus.vehicleId ?: bus.id ?: bus.hashCode()
+                    val target = GeoPoint(bus.latitude, bus.longitude)
+                    val marker = vehicleMarkers.getOrPut(markerId) {
+                        Marker(view).also { marker ->
+                            marker.position = target
+                            view.overlays.add(marker)
+                        }
+                    }
+                    marker.title = "${bus.vehicleModel ?: "Автобус"} (${bus.licensePlate ?: "без номера"})"
+                    marker.snippet = "Статус: ${bus.status ?: "—"}; скорость: ${bus.speed?.let { "${it} км/ч" } ?: "—"}"
+                    marker.icon = backendBusIcon ?: view.context.getDrawable(android.R.drawable.ic_menu_compass)
+                    animateMarkerPosition(markerId, marker, target, view, mapAnimationScope, vehicleMarkerJobs)
                 }
-                uiState.mapStops.forEach { stop ->
-                    val m = Marker(view)
-                    m.position = GeoPoint(stop.latitude, stop.longitude)
-                    m.title = stop.name
-                    m.snippet = "Остановка"
-                    m.icon = backendStopIcon ?: view.context.getDrawable(android.R.drawable.ic_menu_mylocation)
-                    view.overlays.add(m)
+
+                val currentStopIds = uiState.mapStops.mapIndexed { index, stop -> stop.id ?: -index - 1 }.toSet()
+                stopMarkers.keys.toList().filterNot { it in currentStopIds }.forEach { staleId ->
+                    stopMarkers.remove(staleId)?.let { view.overlays.remove(it) }
                 }
-                uiState.userLocation?.let { val m = Marker(view); m.position = it; m.title = "Вы"; m.icon = view.context.getDrawable(android.R.drawable.star_on); view.overlays.add(m) }
+                uiState.mapStops.forEachIndexed { index, stop ->
+                    val markerId = stop.id ?: -index - 1
+                    val marker = stopMarkers.getOrPut(markerId) {
+                        Marker(view).also { view.overlays.add(it) }
+                    }
+                    marker.position = GeoPoint(stop.latitude, stop.longitude)
+                    marker.title = stop.name
+                    marker.snippet = "Остановка"
+                    marker.icon = backendStopIcon ?: view.context.getDrawable(android.R.drawable.ic_menu_mylocation)
+                }
+
+                uiState.userLocation?.let { location ->
+                    val marker = userMarkerRef[0] ?: Marker(view).also {
+                        it.title = "Вы"
+                        it.icon = view.context.getDrawable(android.R.drawable.star_on)
+                        userMarkerRef[0] = it
+                        view.overlays.add(it)
+                    }
+                    marker.position = location
+                } ?: userMarkerRef[0]?.let { marker ->
+                    view.overlays.remove(marker)
+                    userMarkerRef[0] = null
+                }
+
                 if (uiState.routePoints.isNotEmpty()) {
-                    val line = Polyline(); line.setPoints(uiState.routePoints); line.outlinePaint.color = android.graphics.Color.GREEN; line.outlinePaint.strokeWidth = 12f; view.overlays.add(line)
+                    val line = routeLineRef[0] ?: Polyline().also {
+                        it.outlinePaint.color = android.graphics.Color.GREEN
+                        it.outlinePaint.strokeWidth = 12f
+                        routeLineRef[0] = it
+                        view.overlays.add(it)
+                    }
+                    line.setPoints(uiState.routePoints)
+                } else {
+                    routeLineRef[0]?.let { line ->
+                        view.overlays.remove(line)
+                        routeLineRef[0] = null
+                    }
                 }
                 view.invalidate()
             }

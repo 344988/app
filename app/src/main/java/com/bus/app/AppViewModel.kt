@@ -47,6 +47,8 @@ import org.osmdroid.util.GeoPoint
 
 enum class ServerStatusLevel { GREEN, YELLOW, RED }
 
+private const val MAP_REFRESH_THROTTLE_MS = 5_000L
+
 data class AppUiState(
     val token: String? = null,
     val userRole: String = "",
@@ -98,6 +100,7 @@ class AppViewModel(
     private val loginUseCase = LoginUseCase(repository)
     private val syncActiveRoutesUseCase = SyncActiveRoutesUseCase(repository)
     private val sessionDataStore = SessionDataStore(application.applicationContext)
+    private var lastMapRefreshAtMillis: Long = 0L
 
     init {
         viewModelScope.launch {
@@ -259,8 +262,11 @@ class AppViewModel(
     }
 
 
-    suspend fun refreshServerMap() {
+    suspend fun refreshServerMap(force: Boolean = false) {
         val token = _uiState.value.token ?: return
+        val now = System.currentTimeMillis()
+        if (!force && now - lastMapRefreshAtMillis < MAP_REFRESH_THROTTLE_MS) return
+        lastMapRefreshAtMillis = now
         _uiState.update { it.copy(mapLoading = true, mapErrorMessage = null, mapOffline = false) }
         try {
             val auth = "Bearer $token"
