@@ -207,6 +207,7 @@ class MainActivity : ComponentActivity() {
                     composable("admin_panel") { AdminPanelScreen(navController, appViewModel) }
                     composable("mechanic_panel") { MechanicPanelScreen(navController, appViewModel) }
                     composable("dispatcher_panel") { DispatcherPanelScreen(navController, appViewModel) }
+                    composable("routes_stops") { RoutesStopsScreen(navController, appViewModel) }
                 }
             }
         }
@@ -482,6 +483,7 @@ fun MainMapScreen(navController: NavController, appViewModel: AppViewModel) {
                     if (uiState.userRole == "driver" || uiState.userRole == "admin") MenuButton("Настроить рейс", Icons.Default.Add) { navController.navigate("driver_setup"); showMenu = false }
                     if (uiState.userRole == "mechanic" || uiState.userRole == "admin") MenuButton("Механик", Icons.Default.Build) { navController.navigate("mechanic_panel"); showMenu = false }
                     if (uiState.userRole == "dispatcher" || uiState.userRole == "admin") MenuButton("Диспетчер", Icons.Default.List) { navController.navigate("dispatcher_panel"); showMenu = false }
+                    if (uiState.userRole == "dispatcher" || uiState.userRole == "admin") MenuButton("Маршруты и остановки", Icons.Default.Place) { navController.navigate("routes_stops"); showMenu = false }
                     if (uiState.userRole == "passenger" || uiState.userRole == "admin") MenuButton("Выбрать автобус", Icons.Default.Search) { navController.navigate("passenger_setup"); showMenu = false }
                     Spacer(modifier = Modifier.weight(1f))
                     MenuButton("Выйти", Icons.Default.ExitToApp) { appViewModel.logout(); navController.navigate("auth"); showMenu = false }
@@ -651,6 +653,115 @@ fun AdminPanelScreen(navController: NavController, appViewModel: AppViewModel) {
             )
         }
         Spacer(modifier = Modifier.height(24.dp)); Button(modifier = Modifier.fillMaxWidth(), onClick = { navController.popBackStack() }) { Text("Назад") }
+    }
+}
+
+@Composable
+fun RoutesStopsScreen(navController: NavController, appViewModel: AppViewModel) {
+    val uiState by appViewModel.uiState.collectAsState()
+    var routeTemplateIdText by remember { mutableStateOf("") }
+    var tripIdText by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) { appViewModel.loadRoutesAndStops() }
+
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF050816)).padding(24.dp).verticalScroll(rememberScrollState())) {
+        Text("Маршруты и остановки", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(12.dp))
+        if (uiState.routesStopsLoading) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        uiState.routesStopsErrorMessage?.let { message ->
+            Text(
+                if (uiState.routesStopsOffline) "$message. Проверьте интернет." else message,
+                color = Color(0xFFFFA0A0),
+                fontSize = 13.sp
+            )
+        }
+        Button(modifier = Modifier.fillMaxWidth(), onClick = { scope.launch { appViewModel.loadRoutesAndStops() } }) { Text("Обновить") }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Все остановки", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        if (uiState.adminStops.isEmpty()) {
+            Text("Остановки не загружены", color = Color.Gray, fontSize = 13.sp)
+        } else {
+            uiState.adminStops.take(20).forEach { stop ->
+                Text("${stop.name}: ${stop.latitude}, ${stop.longitude}", color = Color.Gray, fontSize = 12.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Рабочие остановки карты", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        if (uiState.mapStops.isEmpty()) {
+            Text("Рабочие остановки не загружены", color = Color.Gray, fontSize = 13.sp)
+        } else {
+            uiState.mapStops.take(20).forEach { stop ->
+                Text("${stop.name}: ${stop.latitude}, ${stop.longitude}", color = Color.Gray, fontSize = 12.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Шаблоны маршрутов", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        NeonTextField(routeTemplateIdText, { routeTemplateIdText = it.filter { ch -> ch.isDigit() } }, "ID шаблона для остановок")
+        Button(modifier = Modifier.fillMaxWidth(), onClick = {
+            scope.launch {
+                val routeTemplateId = routeTemplateIdText.toIntOrNull() ?: return@launch
+                appViewModel.loadRouteTemplateStops(routeTemplateId)
+            }
+        }) { Text("Загрузить остановки шаблона") }
+        if (uiState.routeTemplates.isEmpty()) {
+            Text("Шаблонов маршрутов нет", color = Color.Gray, fontSize = 13.sp)
+        } else {
+            uiState.routeTemplates.forEach { template ->
+                Card(Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable {
+                    routeTemplateIdText = template.id.toString()
+                    scope.launch { appViewModel.loadRouteTemplateStops(template.id) }
+                }, colors = CardDefaults.cardColors(containerColor = Color(0xFF10192F))) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("#${template.id}: ${template.name}", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(template.description ?: "Без описания", color = Color.Gray, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Остановки выбранного маршрута по порядку", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        if (uiState.selectedRouteStops.isEmpty()) {
+            Text("Выберите шаблон маршрута", color = Color.Gray, fontSize = 13.sp)
+        } else {
+            uiState.selectedRouteStops.forEachIndexed { index, stop ->
+                Text("${index + 1}. ${stop.name}", color = Color.Gray, fontSize = 12.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Маршрут рейса", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        NeonTextField(tripIdText, { tripIdText = it.filter { ch -> ch.isDigit() } }, "ID рейса")
+        Button(modifier = Modifier.fillMaxWidth(), onClick = {
+            scope.launch {
+                val tripId = tripIdText.toIntOrNull() ?: return@launch
+                appViewModel.loadTripRouteTemplate(tripId)
+            }
+        }) { Text("Загрузить шаблон рейса") }
+        uiState.selectedTripRouteTemplate?.let { template ->
+            Text("Рейс использует шаблон: #${template.id} ${template.name}", color = Color.White, fontSize = 13.sp)
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Активные рейсы / автобусы", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
+        if (uiState.activeBuses.isEmpty()) {
+            Text("Активных рейсов нет", color = Color.Gray, fontSize = 13.sp)
+        } else {
+            uiState.activeBuses.forEach { bus ->
+                Text("${bus.vehicleModel ?: "Автобус"} ${bus.licensePlate ?: ""}: ${bus.latitude}, ${bus.longitude}", color = Color.Gray, fontSize = 12.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(modifier = Modifier.fillMaxWidth(), onClick = { navController.navigate("main_map") }) { Text("Открыть карту") }
+        Button(modifier = Modifier.fillMaxWidth(), onClick = { navController.popBackStack() }) { Text("Назад") }
     }
 }
 

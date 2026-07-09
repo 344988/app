@@ -38,6 +38,7 @@ import com.bus.app.data.model.DriverShift
 import com.bus.app.data.model.Inspection
 import com.bus.app.data.model.LiveMapVehicle
 import com.bus.app.data.model.StopPoint
+import com.bus.app.data.model.RouteTemplate
 import com.bus.app.data.model.Trip
 import com.bus.app.data.model.TrackingEvent
 import com.bus.app.domain.usecase.LoginUseCase
@@ -89,6 +90,13 @@ data class AppUiState(
     val dispatcherLoading: Boolean = false,
     val dispatcherErrorMessage: String? = null,
     val dispatcherOffline: Boolean = false,
+    val adminStops: List<StopPoint> = emptyList(),
+    val routeTemplates: List<RouteTemplate> = emptyList(),
+    val selectedRouteStops: List<StopPoint> = emptyList(),
+    val selectedTripRouteTemplate: RouteTemplate? = null,
+    val routesStopsLoading: Boolean = false,
+    val routesStopsErrorMessage: String? = null,
+    val routesStopsOffline: Boolean = false,
     val driverShift: DriverShift? = null,
     val driverTrips: List<Trip> = emptyList(),
     val driverInspections: List<Inspection> = emptyList(),
@@ -436,6 +444,91 @@ class AppViewModel(
     }
 
 
+
+
+    suspend fun loadRoutesAndStops() {
+        val token = _uiState.value.token ?: return
+        _uiState.update { it.copy(routesStopsLoading = true, routesStopsErrorMessage = null, routesStopsOffline = false) }
+        try {
+            val auth = "Bearer $token"
+            val stops = repository.getAdminStops(auth) ?: emptyList()
+            val mapStops = repository.getMapStops(auth) ?: emptyList()
+            val templates = repository.getRouteTemplates(auth) ?: emptyList()
+            val activeRoutes = repository.getActiveRoutes(auth) ?: emptyList()
+            _uiState.update {
+                it.copy(
+                    adminStops = stops,
+                    mapStops = mapStops,
+                    routeTemplates = templates,
+                    activeBuses = activeRoutes,
+                    routesStopsLoading = false,
+                    routesStopsErrorMessage = null,
+                    routesStopsOffline = false
+                )
+            }
+        } catch (_: Exception) {
+            _uiState.update {
+                it.copy(
+                    routesStopsLoading = false,
+                    routesStopsErrorMessage = "Не удалось загрузить остановки и маршруты",
+                    routesStopsOffline = true
+                )
+            }
+        }
+    }
+
+    suspend fun loadRouteTemplateStops(routeTemplateId: Int): Boolean {
+        val token = _uiState.value.token ?: return false
+        _uiState.update { it.copy(routesStopsLoading = true, routesStopsErrorMessage = null, routesStopsOffline = false) }
+        return try {
+            val stops = repository.getRouteTemplateStops("Bearer $token", routeTemplateId) ?: emptyList()
+            _uiState.update {
+                it.copy(
+                    selectedRouteStops = stops.sortedBy { stop -> stop.orderIndex ?: Int.MAX_VALUE },
+                    routesStopsLoading = false,
+                    routesStopsErrorMessage = null,
+                    routesStopsOffline = false
+                )
+            }
+            true
+        } catch (_: Exception) {
+            _uiState.update {
+                it.copy(
+                    routesStopsLoading = false,
+                    routesStopsErrorMessage = "Не удалось загрузить остановки маршрута",
+                    routesStopsOffline = true
+                )
+            }
+            false
+        }
+    }
+
+    suspend fun loadTripRouteTemplate(tripId: Int): Boolean {
+        val token = _uiState.value.token ?: return false
+        _uiState.update { it.copy(routesStopsLoading = true, routesStopsErrorMessage = null, routesStopsOffline = false) }
+        return try {
+            val template = repository.getTripRouteTemplate("Bearer $token", tripId)
+            _uiState.update {
+                it.copy(
+                    selectedTripRouteTemplate = template,
+                    selectedRouteStops = template?.stopPoints?.sortedBy { stop -> stop.orderIndex ?: Int.MAX_VALUE } ?: it.selectedRouteStops,
+                    routesStopsLoading = false,
+                    routesStopsErrorMessage = null,
+                    routesStopsOffline = false
+                )
+            }
+            template != null
+        } catch (_: Exception) {
+            _uiState.update {
+                it.copy(
+                    routesStopsLoading = false,
+                    routesStopsErrorMessage = "Не удалось загрузить маршрут рейса",
+                    routesStopsOffline = true
+                )
+            }
+            false
+        }
+    }
 
     suspend fun loadDispatcherDashboard() {
         val token = _uiState.value.token ?: return

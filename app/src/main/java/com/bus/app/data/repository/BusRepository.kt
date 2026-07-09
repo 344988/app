@@ -30,6 +30,7 @@ import com.bus.app.data.model.DriverShift
 import com.bus.app.data.model.Inspection
 import com.bus.app.data.model.LiveMapVehicle
 import com.bus.app.data.model.StopPoint
+import com.bus.app.data.model.RouteTemplate
 import com.bus.app.data.model.Trip
 import com.bus.app.data.model.TrackingEvent
 import okhttp3.MultipartBody
@@ -79,6 +80,10 @@ interface BusRepository {
     suspend fun rejectDispatcherRequest(token: String, requestId: Int, request: RejectDispatcherRequest): DispatcherRequest?
     suspend fun getAdminTrackingEvents(token: String): List<TrackingEvent>?
     suspend fun getDispatcherNotifications(token: String): List<DispatcherNotification>?
+    suspend fun getAdminStops(token: String): List<StopPoint>?
+    suspend fun getRouteTemplates(token: String): List<RouteTemplate>?
+    suspend fun getRouteTemplateStops(token: String, routeTemplateId: Int): List<StopPoint>?
+    suspend fun getTripRouteTemplate(token: String, tripId: Int): RouteTemplate?
     suspend fun getMapConfig(token: String): MapConfigDto?
     suspend fun getLiveMapVehicles(token: String): List<LiveMapVehicle>?
     suspend fun getAdminMapVehicles(token: String): List<LiveMapVehicle>?

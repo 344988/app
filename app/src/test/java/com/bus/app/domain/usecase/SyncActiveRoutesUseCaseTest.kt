@@ -29,6 +29,7 @@ import com.bus.app.data.model.DriverShift
 import com.bus.app.data.model.Inspection
 import com.bus.app.data.model.LiveMapVehicle
 import com.bus.app.data.model.StopPoint
+import com.bus.app.data.model.RouteTemplate
 import com.bus.app.data.model.Trip
 import com.bus.app.data.model.TrackingEvent
 import com.bus.app.data.repository.BusRepository
@@ -127,6 +128,10 @@ private class FakeSyncRepository(
     override suspend fun rejectDispatcherRequest(token: String, requestId: Int, request: RejectDispatcherRequest): DispatcherRequest? = null
     override suspend fun getAdminTrackingEvents(token: String): List<TrackingEvent> = emptyList()
     override suspend fun getDispatcherNotifications(token: String): List<DispatcherNotification> = emptyList()
+    override suspend fun getAdminStops(token: String): List<StopPoint> = emptyList()
+    override suspend fun getRouteTemplates(token: String): List<RouteTemplate> = emptyList()
+    override suspend fun getRouteTemplateStops(token: String, routeTemplateId: Int): List<StopPoint> = emptyList()
+    override suspend fun getTripRouteTemplate(token: String, tripId: Int): RouteTemplate? = null
     override suspend fun getMapConfig(token: String): MapConfigDto? = null
     override suspend fun getLiveMapVehicles(token: String): List<LiveMapVehicle> = emptyList()
     override suspend fun getAdminMapVehicles(token: String): List<LiveMapVehicle> = emptyList()

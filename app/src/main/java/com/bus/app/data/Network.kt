@@ -16,6 +16,7 @@ import org.osmdroid.util.GeoPoint
 import com.bus.app.data.model.DefectReportDto
 import com.bus.app.data.model.LiveMapVehicleDto
 import com.bus.app.data.model.StopPointDto
+import com.bus.app.data.model.RouteTemplateDto
 import com.bus.app.data.model.DriverShiftDto
 import com.bus.app.data.model.InspectionDto
 import com.bus.app.data.model.TripDto
@@ -228,6 +229,25 @@ interface BusApi {
     @GET("/admin/wialon/units")
     suspend fun getWialonUnits(@Header("Authorization") token: String): Response<List<WialonUnit>>
 
+
+
+    @GET("/admin/stops")
+    suspend fun getAdminStops(@Header("Authorization") token: String): Response<List<StopPointDto>>
+
+    @GET("/admin/route-templates")
+    suspend fun getRouteTemplates(@Header("Authorization") token: String): Response<List<RouteTemplateDto>>
+
+    @GET("/admin/route-templates/{route_template_id}/stops")
+    suspend fun getRouteTemplateStops(
+        @Header("Authorization") token: String,
+        @Path("route_template_id") routeTemplateId: Int
+    ): Response<List<StopPointDto>>
+
+    @GET("/admin/trips/{trip_id}/route-template")
+    suspend fun getTripRouteTemplate(
+        @Header("Authorization") token: String,
+        @Path("trip_id") tripId: Int
+    ): Response<RouteTemplateDto>
 
     @GET("/admin/map/config")
     suspend fun getMapConfig(@Header("Authorization") token: String): Response<MapConfigDto>

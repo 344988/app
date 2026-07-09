@@ -32,6 +32,7 @@ import com.bus.app.data.model.DriverShift
 import com.bus.app.data.model.Inspection
 import com.bus.app.data.model.LiveMapVehicle
 import com.bus.app.data.model.StopPoint
+import com.bus.app.data.model.RouteTemplate
 import com.bus.app.data.model.Trip
 import com.bus.app.data.model.TrackingEvent
 import com.bus.app.data.model.toDomain
@@ -301,6 +302,27 @@ class ApiBusRepository : BusRepository {
     override suspend fun getDispatcherNotifications(token: String): List<DispatcherNotification>? {
         val response = retryWithBackoff { ApiClient.api.getDispatcherNotifications(token) }
         return if (response.isSuccessful) response.body()?.map { it.toDomain() } else null
+    }
+
+
+    override suspend fun getAdminStops(token: String): List<StopPoint>? {
+        val response = retryWithBackoff { ApiClient.api.getAdminStops(token) }
+        return if (response.isSuccessful) response.body()?.map { it.toDomain() } else null
+    }
+
+    override suspend fun getRouteTemplates(token: String): List<RouteTemplate>? {
+        val response = retryWithBackoff { ApiClient.api.getRouteTemplates(token) }
+        return if (response.isSuccessful) response.body()?.map { it.toDomain() } else null
+    }
+
+    override suspend fun getRouteTemplateStops(token: String, routeTemplateId: Int): List<StopPoint>? {
+        val response = retryWithBackoff { ApiClient.api.getRouteTemplateStops(token, routeTemplateId) }
+        return if (response.isSuccessful) response.body()?.map { it.toDomain() } else null
+    }
+
+    override suspend fun getTripRouteTemplate(token: String, tripId: Int): RouteTemplate? {
+        val response = retryWithBackoff { ApiClient.api.getTripRouteTemplate(token, tripId) }
+        return if (response.isSuccessful) response.body()?.toDomain() else null
     }
 
     override suspend fun getMapConfig(token: String): MapConfigDto? {
