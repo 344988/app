@@ -681,20 +681,32 @@ class AppViewModel(
 
     suspend fun loadDriverDashboard() {
         val token = _uiState.value.token ?: return
-        _uiState.update { it.copy(driverLoading = true, driverErrorMessage = null, driverOffline = false) }
+        _uiState.update {
+            it.copy(
+                driverLoading = true,
+                driverErrorMessage = null,
+                driverOffline = false,
+                defectErrorMessage = null,
+                defectOffline = false
+            )
+        }
         try {
             val auth = "Bearer $token"
             val shift = repository.getCurrentDriverShift(auth)
             val trips = repository.getDriverTrips(auth) ?: emptyList()
             val inspections = repository.getDriverInspections(auth) ?: emptyList()
+            val defects = repository.getDriverDefects(auth) ?: emptyList()
             _uiState.update {
                 it.copy(
                     driverShift = shift,
                     driverTrips = trips,
                     driverInspections = inspections,
+                    driverDefects = defects,
                     driverLoading = false,
                     driverErrorMessage = null,
-                    driverOffline = false
+                    driverOffline = false,
+                    defectErrorMessage = null,
+                    defectOffline = false
                 )
             }
         } catch (_: Exception) {
@@ -844,7 +856,7 @@ class AppViewModel(
                 severity = severityBody,
                 photo = photoPart
             ) ?: return@runDefectAction false
-            loadDriverDefects()
+            loadDriverDashboard()
             true
         }
     }

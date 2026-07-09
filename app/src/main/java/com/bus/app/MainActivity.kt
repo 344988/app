@@ -310,7 +310,8 @@ fun AuthScreen(navController: NavController, appViewModel: AppViewModel) {
                 scope.launch {
                     try {
                         if (appViewModel.login(login.trim(), password.trim())) {
-                            navController.navigate("main_map")
+                            val destination = if (appViewModel.uiState.value.userRole == "driver") "driver_setup" else "main_map"
+                            navController.navigate(destination)
                         }
                     } catch (e: Exception) { Toast.makeText(context, "Сервер недоступен", Toast.LENGTH_SHORT).show() }
                 }
@@ -919,7 +920,6 @@ fun DriverSetupScreen(navController: NavController, appViewModel: AppViewModel) 
 
     LaunchedEffect(Unit) {
         appViewModel.loadDriverDashboard()
-        appViewModel.loadDriverDefects()
     }
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF050816)).padding(24.dp).verticalScroll(rememberScrollState())) {
@@ -938,6 +938,9 @@ fun DriverSetupScreen(navController: NavController, appViewModel: AppViewModel) 
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
+
+        Button(modifier = Modifier.fillMaxWidth(), onClick = { scope.launch { appViewModel.loadDriverDashboard() } }) { Text("Обновить данные водителя") }
+        Spacer(modifier = Modifier.height(12.dp))
 
         Text("Смена", color = Color(0xFF00F5FF), fontWeight = FontWeight.Bold)
         Text(
@@ -1073,6 +1076,7 @@ fun DriverSetupScreen(navController: NavController, appViewModel: AppViewModel) 
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
+        Button(modifier = Modifier.fillMaxWidth(), onClick = { navController.navigate("main_map") }) { Text("Открыть карту") }
         Button(modifier = Modifier.fillMaxWidth(), onClick = { navController.popBackStack() }) { Text("Назад") }
     }
 }
