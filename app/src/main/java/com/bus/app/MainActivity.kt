@@ -378,6 +378,14 @@ fun MainMapScreen(navController: NavController, appViewModel: AppViewModel) {
                     marker.title = "${bus.vehicleModel ?: "Автобус"} (${bus.licensePlate ?: "без номера"})"
                     marker.snippet = "Статус: ${bus.status ?: "—"}; скорость: ${bus.speed?.let { "${it} км/ч" } ?: "—"}"
                     marker.icon = backendBusIcon ?: view.context.getDrawable(android.R.drawable.ic_menu_compass)
+                    marker.setOnMarkerClickListener { clickedMarker, _ ->
+                        appViewModel.selectMapVehicle(bus)
+                        bus.vehicleId?.let { vehicleId ->
+                            mapAnimationScope.launch { appViewModel.loadMapVehicleDetails(vehicleId) }
+                        }
+                        clickedMarker.showInfoWindow()
+                        true
+                    }
                     animateMarkerPosition(markerId, marker, target, view, mapAnimationScope, vehicleMarkerJobs)
                 }
 
@@ -426,6 +434,29 @@ fun MainMapScreen(navController: NavController, appViewModel: AppViewModel) {
                 view.invalidate()
             }
         )
+
+        uiState.selectedMapVehicle?.let { vehicle ->
+            Card(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp)
+                    .fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xEE10192F))
+            ) {
+                Column(Modifier.padding(14.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(vehicle.vehicleModel ?: "Автобус", color = Color.White, fontWeight = FontWeight.Bold)
+                        TextButton(onClick = { appViewModel.clearSelectedMapVehicle() }) { Text("Закрыть") }
+                    }
+                    Text("Госномер: ${vehicle.licensePlate ?: "—"}", color = Color.Gray, fontSize = 13.sp)
+                    Text("Водитель: ${vehicle.driverLogin ?: vehicle.driverId ?: "—"}", color = Color.Gray, fontSize = 13.sp)
+                    Text("Статус: ${vehicle.status ?: "—"}; скорость: ${vehicle.speed?.let { "${it} км/ч" } ?: "—"}", color = Color.Gray, fontSize = 13.sp)
+                    Text("Координаты: ${vehicle.latitude}, ${vehicle.longitude}", color = Color.Gray, fontSize = 12.sp)
+                    vehicle.updatedAt?.let { Text("Обновлено: $it", color = Color.Gray, fontSize = 12.sp) }
+                }
+            }
+        }
+
         uiState.mapErrorMessage?.let { error ->
             Text(
                 text = error,

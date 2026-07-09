@@ -77,6 +77,7 @@ data class AppUiState(
     val packetLossPercent: Int = 100,
     val mapConfig: MapConfigDto? = null,
     val liveMapVehicles: List<LiveMapVehicle> = emptyList(),
+    val selectedMapVehicle: LiveMapVehicle? = null,
     val mapStops: List<StopPoint> = emptyList(),
     val mapBusIconBytes: ByteArray? = null,
     val mapStopIconBytes: ByteArray? = null,
@@ -313,6 +314,7 @@ class AppViewModel(
                     packetLossPercent = health.packetLossPercent,
                     mapConfig = mapConfig,
                     liveMapVehicles = liveVehicles,
+                    selectedMapVehicle = liveVehicles.findSameVehicle(state.selectedMapVehicle) ?: state.selectedMapVehicle,
                     mapStops = stops,
                     mapBusIconBytes = busIcon,
                     mapStopIconBytes = stopIcon,
@@ -333,6 +335,45 @@ class AppViewModel(
                 )
             }
         }
+    }
+
+
+    fun selectMapVehicle(vehicle: LiveMapVehicle) {
+        _uiState.update { it.copy(selectedMapVehicle = vehicle) }
+    }
+
+    fun clearSelectedMapVehicle() {
+        _uiState.update { it.copy(selectedMapVehicle = null) }
+    }
+
+    suspend fun loadMapVehicleDetails(vehicleId: Int): Boolean {
+        val token = _uiState.value.token ?: return false
+        return try {
+            val vehicle = repository.getAdminMapVehicle("Bearer $token", vehicleId)
+            if (vehicle != null) {
+                _uiState.update { it.copy(selectedMapVehicle = vehicle) }
+                true
+            } else {
+                false
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun applyLiveMapVehiclesFromPush(vehicles: List<LiveMapVehicle>) {
+        _uiState.update { state ->
+            state.copy(
+                liveMapVehicles = vehicles,
+                selectedMapVehicle = vehicles.findSameVehicle(state.selectedMapVehicle) ?: state.selectedMapVehicle,
+                activeBuses = vehicles.mapNotNull { vehicle -> vehicle.toActiveBus() }
+            )
+        }
+    }
+
+    private fun List<LiveMapVehicle>.findSameVehicle(selected: LiveMapVehicle?): LiveMapVehicle? {
+        val selectedKey = selected?.vehicleId ?: selected?.id ?: return null
+        return firstOrNull { vehicle -> (vehicle.vehicleId ?: vehicle.id) == selectedKey }
     }
 
     private fun LiveMapVehicle.toActiveBus(): ActiveBus? {
